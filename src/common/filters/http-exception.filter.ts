@@ -55,6 +55,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.logger.error(exception instanceof Error ? exception.stack : String(exception));
     }
 
+    // Si la respuesta ya salió (p. ej. un archivo), no se puede responder otra vez:
+    // intentarlo lanzaría un error fuera de Nest que tumbaría el proceso.
+    if (res.headersSent) {
+      this.logger.error(`Error después de enviar la respuesta: ${String(message)}`);
+      return;
+    }
     res.status(status).json({
       statusCode: status,
       error,

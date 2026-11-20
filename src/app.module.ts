@@ -26,6 +26,7 @@ import { TurnosModule } from './modules/turnos/turnos.module';
 import { VentasModule } from './modules/ventas/ventas.module';
 import { TrasladosModule } from './modules/traslados/traslados.module';
 import { ProveedoresModule } from './modules/proveedores/proveedores.module';
+import { ReportesModule } from './modules/reportes/reportes.module';
 import { AppConfigModule } from './modules/config/config.module';
 import { PortalModule } from './modules/portal/portal.module';
 
@@ -53,6 +54,7 @@ import { PortalModule } from './modules/portal/portal.module';
     VentasModule,
     TrasladosModule,
     ProveedoresModule,
+    ReportesModule,
     AppConfigModule,
     PortalModule,
   ],
