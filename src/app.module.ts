@@ -24,6 +24,8 @@ import { CombosModule } from './modules/combos/combos.module';
 import { InventarioModule } from './modules/inventario/inventario.module';
 import { TurnosModule } from './modules/turnos/turnos.module';
 import { VentasModule } from './modules/ventas/ventas.module';
+import { TrasladosModule } from './modules/traslados/traslados.module';
+import { ProveedoresModule } from './modules/proveedores/proveedores.module';
 import { AppConfigModule } from './modules/config/config.module';
 import { PortalModule } from './modules/portal/portal.module';
 
@@ -49,6 +51,8 @@ import { PortalModule } from './modules/portal/portal.module';
     InventarioModule,
     TurnosModule,
     VentasModule,
+    TrasladosModule,
+    ProveedoresModule,
     AppConfigModule,
     PortalModule,
   ],

@@ -102,6 +102,7 @@ export async function asignarFifo(
   usuarioId: number,
 ): Promise<number> {
   let total = 0;
+  const ventas: number[] = [];
   const stock = await bloquearStock(m, colegioId, libroIds);
   for (const [libroId, s] of stock) {
     let disponible = s.disponible;
@@ -154,7 +155,106 @@ export async function asignarFifo(
       });
       disponible -= asignar;
       total += asignar;
+      ventas.push(p.ventaId);
     }
   }
+  await compactarLineas(m, ventas);
   return total;
+}
+
+type EstadoPendiente = (typeof ESTADOS_PENDIENTES)[number];
+
+/**
+ * Pasa hasta `cantidad` unidades de líneas pendientes (FIFO por fecha de venta) de un estado a otro,
+ * ligándolas al traslado o pedido. Si una línea excede lo que falta, se parte en dos.
+ * Ej.: al despachar un traslado, PENDIENTE_TRASLADO → EN_TRANSITO.
+ */
+export async function marcarPendientes(
+  m: EntityManager,
+  colegioId: number,
+  libroId: number,
+  desde: EstadoPendiente,
+  hacia: EstadoPendiente,
+  cantidad: number,
+  ref: { trasladoId?: number; pedidoId?: number },
+): Promise<number> {
+  const lineas: {
+    id: number;
+    ventaId: number;
+    cantidad: number;
+    precio: string;
+    origen: number | null;
+  }[] = await m.query(
+    `SELECT d.id, d.venta_id AS "ventaId", d.cantidad, d.precio_unitario AS precio,
+            d.colegio_origen_id AS origen
+       FROM venta_detalle d JOIN venta v ON v.id = d.venta_id
+      WHERE v.colegio_id = $1 AND d.libro_id = $2 AND d.estado = $3 AND v.estado_pago = 'PAGADA'
+      ORDER BY v.fecha, d.id
+      FOR UPDATE OF d`,
+    [colegioId, libroId, desde],
+  );
+  let restante = cantidad;
+  for (const l of lineas) {
+    if (restante <= 0) break;
+    const q = Math.min(restante, l.cantidad);
+    if (q < l.cantidad) {
+      // Se parte: lo que no alcanza sigue en el estado anterior.
+      await m.query(`UPDATE venta_detalle SET cantidad = $2, subtotal = $3 WHERE id = $1`, [
+        l.id,
+        l.cantidad - q,
+        money(l.precio)
+          .mul(l.cantidad - q)
+          .toFixed(2),
+      ]);
+      await m.query(
+        `INSERT INTO venta_detalle (venta_id, libro_id, cantidad, precio_unitario, subtotal, estado,
+                                    traslado_id, pedido_proveedor_id, colegio_origen_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          l.ventaId,
+          libroId,
+          q,
+          l.precio,
+          money(l.precio).mul(q).toFixed(2),
+          hacia,
+          ref.trasladoId ?? null,
+          ref.pedidoId ?? null,
+          l.origen,
+        ],
+      );
+    } else {
+      await m.query(
+        `UPDATE venta_detalle SET estado = $2,
+                traslado_id = coalesce($3, traslado_id), pedido_proveedor_id = coalesce($4, pedido_proveedor_id)
+          WHERE id = $1`,
+        [l.id, hacia, ref.trasladoId ?? null, ref.pedidoId ?? null],
+      );
+    }
+    restante -= q;
+  }
+  await compactarLineas(
+    m,
+    lineas.map((l) => l.ventaId),
+  );
+  return cantidad - restante;
+}
+
+/**
+ * Une líneas equivalentes de una misma venta (mismo libro, estado, precio y referencia) que
+ * quedaron partidas por asignaciones FIFO. Solo líneas sin entregas, para no tocar historial.
+ */
+export async function compactarLineas(m: EntityManager, ventaIds: number[]) {
+  if (!ventaIds.length) return;
+  await m.query(
+    `WITH g AS (
+       SELECT min(id) AS keep, array_agg(id) AS ids, sum(cantidad) AS q, sum(subtotal) AS st
+         FROM venta_detalle
+        WHERE venta_id = ANY($1::bigint[]) AND cantidad_entregada = 0
+          AND estado NOT IN ('ENTREGADO', 'ANULADO')
+        GROUP BY venta_id, libro_id, estado, precio_unitario, traslado_id, pedido_proveedor_id, colegio_origen_id
+       HAVING count(*) > 1),
+     u AS (UPDATE venta_detalle d SET cantidad = g.q, subtotal = g.st FROM g WHERE d.id = g.keep RETURNING d.id)
+     DELETE FROM venta_detalle d USING g WHERE d.id = ANY(g.ids) AND d.id <> g.keep`,
+    [[...new Set(ventaIds)]],
+  );
 }

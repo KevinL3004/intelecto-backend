@@ -76,7 +76,7 @@ export class TurnosController {
     return this.service.cerrar(id, dto, u, ip);
   }
 
-  @Roles(Rol.CONTADOR)
+  @Roles(Rol.ADMIN, Rol.CONTADOR)
   @Post('turnos/:id/validar')
   validar(
     @Param('id', ParseIntPipe) id: number,
