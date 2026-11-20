@@ -31,7 +31,8 @@ export class InventarioController {
     return this.service.movimientos({ ...f, colegioId: colegioDelUsuario(u, f.colegioId) });
   }
 
-  @Roles(Rol.ADMIN)
+  /** Ingreso de mercadería: Admin y Contador. Los ajustes siguen siendo solo del Admin. */
+  @Roles(Rol.ADMIN, Rol.CONTADOR)
   @Post('ingreso')
   ingreso(@Body() dto: IngresoDto, @CurrentUser() u: UsuarioActual, @ClientIp() ip: string) {
     return this.service.ingreso(dto, u.id, ip);
