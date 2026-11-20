@@ -25,6 +25,7 @@ export class AuthService {
       .createQueryBuilder('u')
       .addSelect('u.passwordHash')
       .leftJoinAndSelect('u.persona', 'p')
+      .leftJoinAndSelect('u.colegio', 'c')
       .where('lower(u.username) = lower(:username)', { username })
       .getOne();
 
@@ -84,7 +85,7 @@ export class AuthService {
     }
     const u = await this.usuarios.findOne({
       where: { id: Number(payload.sub) },
-      relations: { persona: true },
+      relations: { persona: true, colegio: true },
     });
     if (!u || !u.activo) throw new UnauthorizedException('Usuario inactivo');
     return { ...(await this.emitirTokens(u)), usuario: this.perfilDe(u) };

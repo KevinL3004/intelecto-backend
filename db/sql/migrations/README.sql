@@ -1,2 +1,2 @@
 -- Los cambios posteriores al esquema v1.0 van aquí como V003__descripcion.sql, V004__...
--- Se aplican en orden en local y en Neon con: psql "$DATABASE_URL" -f sql/migrations/V003__descripcion.sql
+-- Se aplican en orden en local y en Neon con: psql "$DATABASE_URL" -f db/sql/migrations/V00N__descripcion.sql

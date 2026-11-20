@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { Persona } from '../../database/entities';
+import { coincide, patron } from '../../common/utils/busqueda';
 import { paginate, PaginationDto } from '../../common/dto/pagination.dto';
 import { eliminarODesactivar } from '../../common/utils/soft-delete';
 import { BitacoraService } from '../bitacora/bitacora.service';
@@ -18,13 +19,13 @@ export class PersonasService {
     const qb = this.repo.createQueryBuilder('p').orderBy('p.nombres').addOrderBy('p.apellidos');
     if (f.activo) qb.andWhere('p.activo = :a', { a: f.activo === 'true' });
     if (f.q) {
-      const q = `%${f.q.toLowerCase()}%`;
+      const q = patron(f.q);
       qb.andWhere(
         new Brackets((w) =>
           w
-            .where("lower(p.nombres || ' ' || p.apellidos) LIKE :q", { q })
-            .orWhere('lower(p.nit) LIKE :q', { q })
-            .orWhere('p.dpi LIKE :q', { q }),
+            .where(coincide("p.nombres || ' ' || p.apellidos"), { q })
+            .orWhere(coincide('p.nit'), { q })
+            .orWhere(coincide('p.dpi'), { q }),
         ),
       );
     }

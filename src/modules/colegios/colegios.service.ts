@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Colegio } from '../../database/entities';
+import { coincide, patron } from '../../common/utils/busqueda';
 import { paginate, PaginationDto } from '../../common/dto/pagination.dto';
 import { eliminarODesactivar } from '../../common/utils/soft-delete';
 import { BitacoraService } from '../bitacora/bitacora.service';
@@ -18,9 +19,7 @@ export class ColegiosService {
     const qb = this.repo.createQueryBuilder('c').orderBy('c.nombre');
     if (f.activo) qb.andWhere('c.activo = :a', { a: f.activo === 'true' });
     if (f.q)
-      qb.andWhere('(lower(c.nombre) LIKE :q OR lower(c.codigo) LIKE :q)', {
-        q: `%${f.q.toLowerCase()}%`,
-      });
+      qb.andWhere(`(${coincide('c.nombre')} OR ${coincide('c.codigo')})`, { q: patron(f.q) });
     const [data, total] = await qb
       .skip((f.page - 1) * f.limit)
       .take(f.limit)

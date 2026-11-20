@@ -3,10 +3,19 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { Persona, Usuario } from '../../database/entities';
+import { coincide, patron } from '../../common/utils/busqueda';
 import { paginate, PaginationDto } from '../../common/dto/pagination.dto';
 import { BusinessError } from '../../common/errors';
 import { BitacoraService } from '../bitacora/bitacora.service';
 import { CrearUsuarioDto, EditarUsuarioDto } from './dto/usuario.dto';
+import { Rol } from '../../common/roles';
+import { estadoUsuarioCache } from '../../common/guards/estado-usuario';
+
+/** El cajero opera en un solo colegio: es obligatorio asignarlo. */
+function validarColegioCajero(rol: Rol, colegioId: number | null | undefined) {
+  if (rol === Rol.CAJERO && !colegioId)
+    throw new BusinessError('CAJERO_SIN_COLEGIO', 'El cajero debe tener un colegio asignado', 422);
+}
 
 @Injectable()
 export class UsuariosService {
@@ -25,8 +34,8 @@ export class UsuariosService {
     if (f.activo) qb.andWhere('u.activo = :a', { a: f.activo === 'true' });
     if (f.rol) qb.andWhere('u.rol = :rol', { rol: f.rol });
     if (f.q) {
-      qb.andWhere("(lower(u.username) LIKE :q OR lower(p.nombres || ' ' || p.apellidos) LIKE :q)", {
-        q: `%${f.q.toLowerCase()}%`,
+      qb.andWhere(`(${coincide('u.username')} OR ${coincide("p.nombres || ' ' || p.apellidos")})`, {
+        q: patron(f.q),
       });
     }
     const [data, total] = await qb
@@ -47,6 +56,7 @@ export class UsuariosService {
 
   async crear(dto: CrearUsuarioDto, actorId: number, ip: string) {
     if (!dto.personaId && !dto.persona) throw new BadRequestException('Envíe personaId o persona');
+    validarColegioCajero(dto.rol, dto.colegioId);
     return this.ds.transaction(async (m) => {
       const existe = await m.getRepository(Usuario).exists({ where: { username: dto.username } });
       if (existe) throw new BusinessError('USUARIO_DUPLICADO', 'El nombre de usuario ya existe');
@@ -97,7 +107,12 @@ export class UsuariosService {
         'No puede desactivarse ni cambiar su propio rol',
       );
     }
+    validarColegioCajero(
+      dto.rol ?? antes.rol,
+      dto.colegioId !== undefined ? dto.colegioId : antes.colegioId,
+    );
     await this.repo.update(id, dto);
+    estadoUsuarioCache.invalidar(id);
     const despues = await this.obtener(id);
     await this.bitacora.registrar({
       usuarioId: actorId,

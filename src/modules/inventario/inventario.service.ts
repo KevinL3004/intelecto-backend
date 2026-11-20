@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { DataSource, In } from 'typeorm';
 import { Inventario, Libro, MovimientoInventario } from '../../database/entities';
+import { coincide, patron } from '../../common/utils/busqueda';
 import { paginate } from '../../common/dto/pagination.dto';
 import { BusinessError } from '../../common/errors';
 import { BitacoraService } from '../bitacora/bitacora.service';
@@ -30,8 +31,8 @@ export class InventarioService {
     const params: unknown[] = [colegioId];
     let filtro = '';
     if (q) {
-      params.push(`%${q.toLowerCase()}%`);
-      filtro += ` AND (lower(l.titulo) LIKE $2 OR lower(coalesce(l.isbn,'')) LIKE $2)`;
+      params.push(patron(q));
+      filtro += ` AND (${coincide('l.titulo', '$2')} OR ${coincide('l.isbn', '$2')})`;
     }
     if (soloConExistencia) filtro += ' AND coalesce(d.existencia,0) > 0';
     const filas: FilaInventario[] = await this.ds.query(

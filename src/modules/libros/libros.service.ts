@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Libro } from '../../database/entities';
+import { coincide, patron } from '../../common/utils/busqueda';
 import { paginate, PaginationDto } from '../../common/dto/pagination.dto';
 import { eliminarODesactivar } from '../../common/utils/soft-delete';
 import { BitacoraService } from '../bitacora/bitacora.service';
@@ -19,8 +20,8 @@ export class LibrosService {
     if (f.activo) qb.andWhere('l.activo = :a', { a: f.activo === 'true' });
     if (f.q)
       qb.andWhere(
-        "(lower(l.titulo) LIKE :q OR lower(coalesce(l.isbn,'')) LIKE :q OR lower(coalesce(l.editorial,'')) LIKE :q)",
-        { q: `%${f.q.toLowerCase()}%` },
+        `(${coincide('l.titulo')} OR ${coincide('l.isbn')} OR ${coincide('l.editorial')})`,
+        { q: patron(f.q) },
       );
     const [data, total] = await qb
       .skip((f.page - 1) * f.limit)
