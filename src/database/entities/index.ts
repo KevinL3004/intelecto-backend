@@ -6,3 +6,7 @@ export * from './caja.entity';
 export * from './metodo-pago.entity';
 export * from './bitacora.entity';
 export * from './parametro.entity';
+export * from './libro.entity';
+export * from './precio-libro.entity';
+export * from './combo.entity';
+export * from './inventario.entity';
