@@ -1,0 +1,60 @@
+# Entorno local del backend.
+#   docker compose up -d                      -> solo BD (postgres + pgadmin); la API se corre con `npm run start:dev`
+#   docker compose --profile api up -d --build -> BD + API en Docker
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: intelecto_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-intelecto}
+      POSTGRES_USER: ${POSTGRES_USER:-intelecto}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-intelecto_dev}
+      TZ: UTC
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/sql/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./db/sql/02_seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-intelecto} -d ${POSTGRES_DB:-intelecto}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [intelecto]
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: intelecto_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@intelecto.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    ports:
+      - "5051:80"
+    depends_on: [postgres]
+    networks: [intelecto]
+
+  api:
+    profiles: [api]
+    build: .
+    container_name: intelecto_api
+    env_file: .env
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-intelecto}:${POSTGRES_PASSWORD:-intelecto_dev}@postgres:5432/${POSTGRES_DB:-intelecto}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [intelecto]
+
+volumes:
+  pgdata:
+    name: intelecto-db_pgdata   # se conserva el volumen existente
+
+networks:
+  intelecto:
+    name: intelecto_net
