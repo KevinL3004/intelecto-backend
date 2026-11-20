@@ -22,6 +22,8 @@ import { LibrosModule } from './modules/libros/libros.module';
 import { PreciosModule } from './modules/precios/precios.module';
 import { CombosModule } from './modules/combos/combos.module';
 import { InventarioModule } from './modules/inventario/inventario.module';
+import { TurnosModule } from './modules/turnos/turnos.module';
+import { VentasModule } from './modules/ventas/ventas.module';
 import { AppConfigModule } from './modules/config/config.module';
 import { PortalModule } from './modules/portal/portal.module';
 
@@ -45,6 +47,8 @@ import { PortalModule } from './modules/portal/portal.module';
     PreciosModule,
     CombosModule,
     InventarioModule,
+    TurnosModule,
+    VentasModule,
     AppConfigModule,
     PortalModule,
   ],

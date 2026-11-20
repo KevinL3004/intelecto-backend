@@ -10,3 +10,4 @@ export * from './libro.entity';
 export * from './precio-libro.entity';
 export * from './combo.entity';
 export * from './inventario.entity';
+export * from './turno.entity';

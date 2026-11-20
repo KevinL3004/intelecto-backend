@@ -5,6 +5,7 @@ import { coincide, patron } from '../../common/utils/busqueda';
 import { paginate } from '../../common/dto/pagination.dto';
 import { BusinessError } from '../../common/errors';
 import { BitacoraService } from '../bitacora/bitacora.service';
+import { asignarFifo } from './stock';
 import { AjusteDto, FiltroMovimientosDto, IngresoDto } from './dto/inventario.dto';
 
 export interface FilaInventario {
@@ -95,6 +96,7 @@ export class InventarioService {
           usuarioId,
         })),
       );
+      const reservados = await asignarFifo(m, dto.colegioId, ids, usuarioId);
       await this.bitacora.registrar(
         {
           usuarioId,
@@ -106,7 +108,7 @@ export class InventarioService {
         },
         m,
       );
-      return { items: resultado };
+      return { items: resultado, reservadosParaPendientes: reservados };
     });
   }
 
@@ -166,7 +168,9 @@ export class InventarioService {
         },
         m,
       );
-      return { existencia: dto.existencia, diferencia };
+      const reservados =
+        diferencia > 0 ? await asignarFifo(m, dto.colegioId, [dto.libroId], usuarioId) : 0;
+      return { existencia: dto.existencia, diferencia, reservadosParaPendientes: reservados };
     });
   }
 }
