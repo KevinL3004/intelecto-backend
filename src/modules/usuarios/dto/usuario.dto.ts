@@ -13,7 +13,7 @@ import {
 } from 'class-validator';
 import { Rol } from '../../../common/roles';
 import { CrearPersonaDto } from '../../personas/dto/persona.dto';
-import { PASSWORD_MSG, PASSWORD_REGEX } from '../../auth/dto/auth.dto';
+import { PasswordSegura } from '../../../common/utils/password';
 
 export class CrearUsuarioDto {
   @ApiPropertyOptional({ description: 'Persona existente' })
@@ -32,7 +32,7 @@ export class CrearUsuarioDto {
   @Matches(/^[a-z0-9._]+$/, { message: 'Usuario: solo minúsculas, números, punto y guion bajo' })
   username: string;
   @ApiProperty({ description: 'Contraseña temporal' })
-  @Matches(PASSWORD_REGEX, { message: PASSWORD_MSG })
+  @PasswordSegura()
   password: string;
   @ApiProperty({ enum: Rol }) @IsEnum(Rol) rol: Rol;
   @ApiPropertyOptional() @IsOptional() @IsInt() colegioId?: number | null;
@@ -45,5 +45,5 @@ export class EditarUsuarioDto {
 }
 
 export class ResetPasswordDto {
-  @ApiProperty() @Matches(PASSWORD_REGEX, { message: PASSWORD_MSG }) password: string;
+  @ApiProperty() @PasswordSegura() password: string;
 }

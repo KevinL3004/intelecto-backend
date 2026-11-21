@@ -1,18 +1,23 @@
+# Node 24 LTS (soporte hasta abril 2028). Versión exacta para builds reproducibles;
+# Dependabot propone las actualizaciones de seguridad.
 # ---------- build ----------
-FROM node:20-alpine AS build
+FROM node:24.22.3-alpine AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+# --ignore-scripts: ningún paquete ejecuta código al instalarse (defensa de cadena de suministro).
+RUN npm ci --ignore-scripts
 COPY . .
-RUN npm run build && npm prune --omit=dev
+RUN npm run build && npm prune --omit=dev --ignore-scripts
 
 # ---------- runtime ----------
-FROM node:20-alpine
+FROM node:24.22.3-alpine
 ENV NODE_ENV=production TZ=UTC
 WORKDIR /app
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY package.json ./
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/dist ./dist
+COPY --chown=node:node package.json ./
+COPY --chown=node:node scripts ./scripts
+# Sin privilegios de root.
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \

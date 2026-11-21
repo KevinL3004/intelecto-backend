@@ -17,7 +17,8 @@ export const ENTITIES = Object.values(E).filter((v) => typeof v === 'function');
       useFactory: (config: ConfigService) => ({
         type: 'postgres',
         url: config.getOrThrow<string>('DATABASE_URL'),
-        ssl: bool(config.get('DATABASE_SSL')) ? { rejectUnauthorized: false } : false,
+        // Con SSL se verifica el certificado del servidor (evita ataques de intermediario).
+        ssl: bool(config.get('DATABASE_SSL')) ? { rejectUnauthorized: true } : false,
         entities: ENTITIES,
         synchronize: false, // el esquema lo manda db/sql (scripts SQL)
         logging: config.get('NODE_ENV') === 'development' ? ['error', 'warn'] : ['error'],

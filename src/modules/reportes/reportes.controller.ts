@@ -62,7 +62,6 @@ export class ReportesController {
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="${nombre}"`,
-      'Access-Control-Expose-Headers': 'Content-Disposition',
     });
     // StreamableFile: Nest envía el archivo una sola vez (res.send + return enviaba dos respuestas
     // y el segundo intento tumbaba el proceso).

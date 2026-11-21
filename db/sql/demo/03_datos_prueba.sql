@@ -5,6 +5,7 @@
 --   docker exec -i intelecto_postgres psql -U intelecto -d intelecto < db/sql/demo/03_datos_prueba.sql
 --
 -- Usuarios (contraseña de todos: Prueba2026!)
+--   admin        ADMIN     (solo si aún no tenía contraseña)
 --   contador     CONTADOR  (sin colegio: consulta todo)
 --   cajero.norte CAJERO    Colegio Norte
 --   cajero.sur   CAJERO    Colegio Sur
@@ -32,11 +33,18 @@ WITH nuevas AS (
 )
 INSERT INTO usuario (persona_id, username, password_hash, rol, colegio_id, debe_cambiar_password, creado_por)
 SELECT n.id, u.username,
-       '$2a$10$UiDpm5Cr5hdX/2Q4NJhOKe7oSIQ38JpsAnYGt4D0xtKyq1mPEWw2i',  -- Prueba2026!
+       '$2b$12$g3OXGSrpJETF05lrqG9QoOmTPtkQ.JmsjRf8MWV23FcLhk7Srav52',  -- Prueba2026!
        u.rol, c.id, false, 1
   FROM nuevas n
   JOIN _u u ON u.nombres = n.nombres AND u.apellidos = n.apellidos
   LEFT JOIN colegio c ON c.codigo = u.colegio;
+
+-- ---------- Admin local ----------
+-- En una BD nueva el admin no tiene contraseña (ver 02_seed.sql). SOLO en local se le asigna la de prueba.
+-- Si ya tiene una (p. ej. la cambiaste), no se toca.
+UPDATE usuario SET password_hash = '$2b$12$g3OXGSrpJETF05lrqG9QoOmTPtkQ.JmsjRf8MWV23FcLhk7Srav52',
+                   debe_cambiar_password = false
+ WHERE username = 'admin' AND password_hash = '!';
 
 -- ---------- Clientes ----------
 INSERT INTO persona (nombres, apellidos, nit, telefono, correo, creado_por)

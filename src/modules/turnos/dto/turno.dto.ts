@@ -73,8 +73,7 @@ export class ValidarTurnoDto {
 
 export class MovimientoCajaDto {
   @ApiProperty({ enum: ['RETIRO', 'INGRESO'] }) @IsIn(['RETIRO', 'INGRESO']) tipo:
-    | 'RETIRO'
-    | 'INGRESO';
+    'RETIRO' | 'INGRESO';
   @ApiProperty({ example: '1000.00' })
   @Matches(MONTO, { message: 'Monto inválido (máximo 2 decimales)' })
   monto: string;

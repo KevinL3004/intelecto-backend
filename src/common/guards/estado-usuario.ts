@@ -28,3 +28,24 @@ export const estadoUsuarioCache = {
     cache.delete(id);
   },
 };
+
+const sesiones = new Map<string, { activa: boolean; vence: number }>();
+
+/**
+ * Caché corto de sesiones vigentes. Al revocar una sesión se invalida aquí de inmediato;
+ * en otras instancias del servidor el cambio tarda como máximo TTL_MS.
+ */
+export const sesionCache = {
+  leer(id: string): boolean | undefined {
+    const e = sesiones.get(id);
+    if (!e || e.vence < Date.now()) return undefined;
+    return e.activa;
+  },
+  guardar(id: string, activa: boolean) {
+    if (sesiones.size > 10_000) sesiones.clear(); // límite de memoria
+    sesiones.set(id, { activa, vence: Date.now() + TTL_MS });
+  },
+  invalidar(id: string) {
+    sesiones.delete(id);
+  },
+};

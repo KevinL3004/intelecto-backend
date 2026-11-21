@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { ClientIp, CurrentUser, Public, UsuarioActual } from '../../common/decorators';
@@ -14,15 +14,24 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('login')
   @HttpCode(200)
-  login(@Body() dto: LoginDto, @ClientIp() ip: string) {
-    return this.auth.login(dto.username, dto.password, ip);
+  login(@Body() dto: LoginDto, @ClientIp() ip: string, @Headers('user-agent') ua?: string) {
+    return this.auth.login(dto.username, dto.password, ip, ua ?? '');
   }
 
   @Public()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @Post('refresh')
   @HttpCode(200)
-  refresh(@Body() dto: RefreshDto) {
-    return this.auth.refresh(dto.refresh_token);
+  refresh(@Body() dto: RefreshDto, @ClientIp() ip: string) {
+    return this.auth.refresh(dto.refresh_token, ip);
+  }
+
+  /** Cierra la sesión actual en el servidor (el refresh token deja de servir). */
+  @ApiBearerAuth()
+  @Post('logout')
+  @HttpCode(200)
+  logout(@CurrentUser() u: UsuarioActual, @ClientIp() ip: string) {
+    return this.auth.logout(u.id, u.sesionId, ip);
   }
 
   @ApiBearerAuth()
@@ -32,13 +41,14 @@ export class AuthController {
   }
 
   @ApiBearerAuth()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Patch('password')
   cambiarPassword(
     @CurrentUser() u: UsuarioActual,
     @Body() dto: CambiarPasswordDto,
     @ClientIp() ip: string,
   ) {
-    return this.auth.cambiarPassword(u.id, dto.actual, dto.nueva, ip);
+    return this.auth.cambiarPassword(u.id, u.sesionId, dto.actual, dto.nueva, ip);
   }
 
   @ApiBearerAuth()

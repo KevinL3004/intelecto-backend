@@ -18,6 +18,8 @@ export interface UsuarioActual {
   username: string;
   rol: Rol;
   colegioId: number | null;
+  /** Sesión del token (permite cerrarla en logout y revocar las demás al cambiar contraseña). */
+  sesionId: string;
 }
 
 export const CurrentUser = createParamDecorator(
@@ -25,6 +27,8 @@ export const CurrentUser = createParamDecorator(
 );
 
 export const ClientIp = createParamDecorator((_: unknown, ctx: ExecutionContext): string => {
+  // req.ip ya considera X-Forwarded-For solo desde el proxy de confianza (app.set('trust proxy', 1)).
+  // Leer el encabezado directamente permitiría a cualquier cliente falsificar su IP en la bitácora.
   const req = ctx.switchToHttp().getRequest();
-  return (req.headers['x-forwarded-for']?.split(',')[0] || req.ip || '').trim();
+  return String(req.ip ?? '').slice(0, 45);
 });

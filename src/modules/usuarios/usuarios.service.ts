@@ -10,6 +10,8 @@ import { BitacoraService } from '../bitacora/bitacora.service';
 import { CrearUsuarioDto, EditarUsuarioDto } from './dto/usuario.dto';
 import { Rol } from '../../common/roles';
 import { estadoUsuarioCache } from '../../common/guards/estado-usuario';
+import { BCRYPT_COSTO, mensajePassword, problemasPassword } from '../../common/utils/password';
+import { SesionesService } from '../auth/sesiones.service';
 
 /** El cajero opera en un solo colegio: es obligatorio asignarlo. */
 function validarColegioCajero(rol: Rol, colegioId: number | null | undefined) {
@@ -23,6 +25,7 @@ export class UsuariosService {
     @InjectRepository(Usuario) private readonly repo: Repository<Usuario>,
     private readonly ds: DataSource,
     private readonly bitacora: BitacoraService,
+    private readonly sesiones: SesionesService,
   ) {}
 
   async listar(f: PaginationDto & { rol?: string }) {
@@ -57,6 +60,9 @@ export class UsuariosService {
   async crear(dto: CrearUsuarioDto, actorId: number, ip: string) {
     if (!dto.personaId && !dto.persona) throw new BadRequestException('Envíe personaId o persona');
     validarColegioCajero(dto.rol, dto.colegioId);
+    const problemas = problemasPassword(dto.password, dto.username);
+    if (problemas.length)
+      throw new BusinessError('PASSWORD_DEBIL', mensajePassword(problemas), 400);
     return this.ds.transaction(async (m) => {
       const existe = await m.getRepository(Usuario).exists({ where: { username: dto.username } });
       if (existe) throw new BusinessError('USUARIO_DUPLICADO', 'El nombre de usuario ya existe');
@@ -77,7 +83,7 @@ export class UsuariosService {
         m.getRepository(Usuario).create({
           personaId,
           username: dto.username,
-          passwordHash: await bcrypt.hash(dto.password, 10),
+          passwordHash: await bcrypt.hash(dto.password, BCRYPT_COSTO),
           rol: dto.rol,
           colegioId: dto.colegioId ?? null,
           debeCambiarPassword: true,
@@ -113,6 +119,7 @@ export class UsuariosService {
     );
     await this.repo.update(id, dto);
     estadoUsuarioCache.invalidar(id);
+    if (dto.activo === false) await this.sesiones.revocarTodas(id, 'USUARIO_DESACTIVADO');
     const despues = await this.obtener(id);
     await this.bitacora.registrar({
       usuarioId: actorId,
@@ -127,13 +134,19 @@ export class UsuariosService {
   }
 
   async resetPassword(id: number, password: string, actorId: number, ip: string) {
-    await this.obtener(id);
+    const u = await this.obtener(id);
+    const problemas = problemasPassword(password, u.username);
+    if (problemas.length)
+      throw new BusinessError('PASSWORD_DEBIL', mensajePassword(problemas), 400);
     await this.repo.update(id, {
-      passwordHash: await bcrypt.hash(password, 10),
+      passwordHash: await bcrypt.hash(password, BCRYPT_COSTO),
       debeCambiarPassword: true,
       intentosFallidos: 0,
       bloqueadoHasta: null,
     });
+    // Quien tenía la contraseña anterior pierde el acceso de inmediato.
+    await this.sesiones.revocarTodas(id, 'RESET_PASSWORD');
+    estadoUsuarioCache.invalidar(id);
     await this.bitacora.registrar({
       usuarioId: actorId,
       accion: 'RESET_PASSWORD',

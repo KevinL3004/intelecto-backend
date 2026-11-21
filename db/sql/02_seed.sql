@@ -1,12 +1,13 @@
 -- =====================================================================
 -- SVI - Datos semilla v1.0
--- Usuario inicial: admin / Intelecto2026!  (obliga a cambiar contraseña)
+-- Usuario inicial: admin SIN contraseña utilizable (no puede entrar hasta que se le asigne una).
+-- Asignarla con:  npm run usuario:password -- admin     (pide la contraseña sin mostrarla)
 -- =====================================================================
 INSERT INTO persona (nombres, apellidos, nit) VALUES ('Administrador', 'Sistema', 'CF');
 INSERT INTO persona (nombres, apellidos, nit) VALUES ('Consumidor', 'Final', 'CF');  -- cliente genérico CF
 
 INSERT INTO usuario (persona_id, username, password_hash, rol, debe_cambiar_password)
-VALUES (1, 'admin', '$2a$10$4H.3U/7VPNxyp/OedCzw7exex4wtmwlFxWZ3Ht4hVpGMMBCyRLese', 'ADMIN', true);
+VALUES (1, 'admin', '!', 'ADMIN', true);  -- '!' no es un hash bcrypt válido: nadie puede entrar con él
 
 INSERT INTO metodo_pago (codigo, nombre, recargo_pct, requiere_referencia) VALUES
   ('EFECTIVO',      'Efectivo',      0, false),
