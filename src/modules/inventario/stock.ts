@@ -113,8 +113,10 @@ export async function asignarFifo(
       codigo: string;
       cantidad: number;
       precio: string;
+      ventaAlumnoId: number | null;
     }[] = await m.query(
-      `SELECT d.id, d.venta_id AS "ventaId", v.codigo, d.cantidad, d.precio_unitario AS precio
+      `SELECT d.id, d.venta_id AS "ventaId", v.codigo, d.cantidad, d.precio_unitario AS precio,
+              d.venta_alumno_id AS "ventaAlumnoId"
          FROM venta_detalle d JOIN venta v ON v.id = d.venta_id
         WHERE v.colegio_id = $1 AND d.libro_id = $2 AND d.estado = ANY($3::estado_linea[])
           AND v.estado_pago = 'PAGADA'
@@ -138,9 +140,17 @@ export async function asignarFifo(
           money(p.precio).mul(resto).toFixed(2),
         ]);
         await m.query(
-          `INSERT INTO venta_detalle (venta_id, libro_id, cantidad, precio_unitario, subtotal, estado)
-           VALUES ($1, $2, $3, $4, $5, 'RESERVADO')`,
-          [p.ventaId, libroId, asignar, p.precio, money(p.precio).mul(asignar).toFixed(2)],
+          `INSERT INTO venta_detalle (venta_id, libro_id, cantidad, precio_unitario, subtotal, estado,
+                                      venta_alumno_id)
+           VALUES ($1, $2, $3, $4, $5, 'RESERVADO', $6)`,
+          [
+            p.ventaId,
+            libroId,
+            asignar,
+            p.precio,
+            money(p.precio).mul(asignar).toFixed(2),
+            p.ventaAlumnoId,
+          ],
         );
       }
       await moverStock(m, colegioId, libroId, { reservado: asignar });
@@ -184,9 +194,10 @@ export async function marcarPendientes(
     cantidad: number;
     precio: string;
     origen: number | null;
+    ventaAlumnoId: number | null;
   }[] = await m.query(
     `SELECT d.id, d.venta_id AS "ventaId", d.cantidad, d.precio_unitario AS precio,
-            d.colegio_origen_id AS origen
+            d.colegio_origen_id AS origen, d.venta_alumno_id AS "ventaAlumnoId"
        FROM venta_detalle d JOIN venta v ON v.id = d.venta_id
       WHERE v.colegio_id = $1 AND d.libro_id = $2 AND d.estado = $3 AND v.estado_pago = 'PAGADA'
       ORDER BY v.fecha, d.id
@@ -208,8 +219,8 @@ export async function marcarPendientes(
       ]);
       await m.query(
         `INSERT INTO venta_detalle (venta_id, libro_id, cantidad, precio_unitario, subtotal, estado,
-                                    traslado_id, pedido_proveedor_id, colegio_origen_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+                                    traslado_id, pedido_proveedor_id, colegio_origen_id, venta_alumno_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [
           l.ventaId,
           libroId,
@@ -220,6 +231,7 @@ export async function marcarPendientes(
           ref.trasladoId ?? null,
           ref.pedidoId ?? null,
           l.origen,
+          l.ventaAlumnoId,
         ],
       );
     } else {
@@ -240,7 +252,7 @@ export async function marcarPendientes(
 }
 
 /**
- * Une líneas equivalentes de una misma venta (mismo libro, estado, precio y referencia) que
+ * Une líneas equivalentes de una misma venta (mismo alumno, libro, estado, precio y referencia) que
  * quedaron partidas por asignaciones FIFO. Solo líneas sin entregas, para no tocar historial.
  */
 export async function compactarLineas(m: EntityManager, ventaIds: number[]) {
@@ -251,7 +263,7 @@ export async function compactarLineas(m: EntityManager, ventaIds: number[]) {
          FROM venta_detalle
         WHERE venta_id = ANY($1::bigint[]) AND cantidad_entregada = 0
           AND estado NOT IN ('ENTREGADO', 'ANULADO')
-        GROUP BY venta_id, libro_id, estado, precio_unitario, traslado_id, pedido_proveedor_id, colegio_origen_id
+        GROUP BY venta_id, venta_alumno_id, libro_id, estado, precio_unitario, traslado_id, pedido_proveedor_id, colegio_origen_id
        HAVING count(*) > 1),
      u AS (UPDATE venta_detalle d SET cantidad = g.q, subtotal = g.st FROM g WHERE d.id = g.keep RETURNING d.id)
      DELETE FROM venta_detalle d USING g WHERE d.id = ANY(g.ids) AND d.id <> g.keep`,

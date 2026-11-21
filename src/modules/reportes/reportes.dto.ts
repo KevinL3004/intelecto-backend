@@ -21,6 +21,7 @@ export const TIPOS = [
   'metodos-pago',
   'libros',
   'pendientes',
+  'alumnos',
   'cuadres',
   'existencias',
   'anuladas',

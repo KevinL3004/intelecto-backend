@@ -29,6 +29,7 @@ import { ProveedoresModule } from './modules/proveedores/proveedores.module';
 import { ReportesModule } from './modules/reportes/reportes.module';
 import { AppConfigModule } from './modules/config/config.module';
 import { PortalModule } from './modules/portal/portal.module';
+import { AlumnosModule } from './modules/alumnos/alumnos.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { PortalModule } from './modules/portal/portal.module';
     HealthModule,
     AuthModule,
     PersonasModule,
+    AlumnosModule,
     UsuariosModule,
     ColegiosModule,
     GradosModule,

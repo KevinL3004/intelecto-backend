@@ -1,4 +1,15 @@
-import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ClientIp, CurrentUser, Roles, UsuarioActual } from '../../common/decorators';
 import { Rol } from '../../common/roles';
@@ -8,7 +19,9 @@ import {
   CotizarVentaDto,
   CrearVentaDto,
   EntregarDto,
+  EnviarComprobanteDto,
   FiltroVentasDto,
+  LicenciaDto,
 } from './dto/venta.dto';
 
 @ApiTags('ventas')
@@ -38,6 +51,37 @@ export class VentasController {
   @Get(':id')
   obtener(@Param('id', ParseIntPipe) id: number, @CurrentUser() u: UsuarioActual) {
     return this.service.obtener(id, u);
+  }
+
+  /** Comprobante para imprimir (ticket térmico 80 mm), agrupado por alumno. */
+  @Get(':id/comprobante')
+  comprobante(@Param('id', ParseIntPipe) id: number, @CurrentUser() u: UsuarioActual) {
+    return this.service.comprobante(id, u);
+  }
+
+  /** Envía (o reenvía) el comprobante por correo. Limitado para evitar abuso como spam. */
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post(':id/comprobante/correo')
+  @HttpCode(202)
+  enviarComprobante(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: EnviarComprobanteDto,
+    @CurrentUser() u: UsuarioActual,
+    @ClientIp() ip: string,
+  ) {
+    return this.service.enviarComprobante(id, dto, u, ip);
+  }
+
+  /** Corrige la licencia digital de un alumno de la venta. */
+  @Patch(':id/alumnos/:ventaAlumnoId/licencia')
+  editarLicencia(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('ventaAlumnoId', ParseIntPipe) ventaAlumnoId: number,
+    @Body() dto: LicenciaDto,
+    @CurrentUser() u: UsuarioActual,
+    @ClientIp() ip: string,
+  ) {
+    return this.service.editarLicencia(id, ventaAlumnoId, dto, u, ip);
   }
 
   @Post(':id/entregas')

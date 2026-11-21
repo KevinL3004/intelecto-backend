@@ -1,7 +1,16 @@
-import { Body, Controller, Get, NotFoundException, Param, Patch } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Patch,
+} from '@nestjs/common';
+import { Transform } from 'class-transformer';
 import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { IsString, MaxLength } from 'class-validator';
 import { Repository } from 'typeorm';
 import { ClientIp, CurrentUser, Public, Roles, UsuarioActual } from '../../common/decorators';
 import { Rol } from '../../common/roles';
@@ -10,8 +19,28 @@ import { Parametro } from '../../database/entities';
 import { BitacoraService } from '../bitacora/bitacora.service';
 
 class ParametroDto {
-  @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(250) valor: string;
+  @ApiProperty()
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MaxLength(250)
+  valor: string;
 }
+
+/** Datos del comprobante que pueden quedar vacíos (no se imprimen). */
+const OPCIONALES = new Set([
+  'direccion_empresa',
+  'telefono_empresa',
+  'correo_empresa',
+  'sitio_licencias',
+  'pie_comprobante',
+  'nit_empresa',
+]);
+/** Parámetros numéricos (ciclo, días, montos). */
+const NUMERICOS: Record<string, RegExp> = {
+  ciclo_actual: /^20\d{2}$/,
+  dias_vencimiento_pedido: /^\d{1,3}$/,
+  monto_minimo_nit: /^\d{1,8}(\.\d{1,2})?$/,
+};
 
 @ApiTags('config')
 @Controller('config')
@@ -45,6 +74,10 @@ export class ConfigController {
   ) {
     const antes = await this.repo.findOneBy({ clave });
     if (!antes) throw new NotFoundException('Parámetro no encontrado');
+    if (!dto.valor && !OPCIONALES.has(clave))
+      throw new BadRequestException('Este parámetro no puede quedar vacío');
+    if (NUMERICOS[clave] && !NUMERICOS[clave].test(dto.valor))
+      throw new BadRequestException('Valor inválido para este parámetro');
     await this.repo.update(clave, { valor: dto.valor });
     await this.bitacora.registrar({
       usuarioId: u.id,

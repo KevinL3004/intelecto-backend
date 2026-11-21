@@ -1,7 +1,7 @@
 # Seguridad — Sistema de Ventas Intelecto (SVI)
 
-El SVI maneja datos personales (nombre, NIT, DPI, teléfono, correo) y dinero (ventas, pagos,
-cierres de caja). Este documento resume los controles implementados, cómo reportar una
+El SVI maneja datos personales (nombre, NIT, DPI, teléfono, correo), **datos de menores de edad**
+(alumnos), licencias digitales y dinero (ventas, pagos, cierres de caja). Este documento resume los controles implementados, cómo reportar una
 vulnerabilidad y qué verificar antes de cada despliegue a producción. La referencia es
 **OWASP ASVS 4.0, nivel 2**.
 
@@ -42,6 +42,27 @@ en este repositorio. Se responde en un máximo de 5 días hábiles.
 - CORS solo para los orígenes de `CORS_ORIGIN` (en producción, solo `https://`).
 - Conexión a PostgreSQL con TLS **verificando el certificado** del servidor.
 
+### Datos de alumnos (menores de edad)
+- Solo lo indispensable: nombre, colegio y grado. Sin fecha de nacimiento, DPI ni fotos.
+- El cajero solo ve los alumnos **del cliente que está atendiendo**; la búsqueda general,
+  la edición y el reporte "Alumnos y licencias" son de Admin y Contador.
+- El cliente genérico "Consumidor Final" nunca acumula alumnos (no se expone la lista a cualquiera).
+- Cambios de nombre, grado y vínculos padre–alumno quedan en bitácora.
+
+### Licencias digitales
+- Formato validado (letras, números, `.`, `-`, `_`; 3 a 60) y **únicas**: una licencia no se
+  vende dos veces (salvo que su venta se anule). Bloqueo por licencia para dos cajas simultáneas.
+- La corrección de una licencia queda en bitácora con el valor anterior.
+
+### Correo saliente (comprobantes)
+- Bandeja de salida con reintentos: si el proveedor falla, la venta no se afecta.
+- SMTP con TLS obligatorio (STARTTLS en 587 o TLS en 465), TLS ≥ 1.2 y certificado verificado.
+- El contenido no se guarda en la BD (se arma al enviar); el log no registra destinatarios.
+- Todo dato del cliente se escapa en el HTML del correo (pruebas automatizadas).
+- Reenvío limitado a 10 por minuto. Un cajero solo **completa** el correo de un cliente que no lo
+  tenía; cambiar uno existente es de Admin/Contador (evita desviar comprobantes).
+- Requisitos del dominio remitente: SPF, DKIM y DMARC (ver README).
+
 ### Auditoría (ASVS V7)
 - Bitácora de toda acción sobre dinero, stock, usuarios y configuración: usuario, fecha, IP,
   valor anterior y nuevo. La IP es la que entrega el proxy de confianza (no falsificable).
@@ -66,6 +87,7 @@ en este repositorio. Se responde en un máximo de 5 días hábiles.
 - [ ] En GitHub: activar *secret scanning*, *push protection*, *Dependabot alerts* y
       *private vulnerability reporting*; proteger `main` (PR + CI en verde).
 - [ ] Respaldos de Neon verificados (restauración de prueba).
+- [ ] Correo: credenciales SMTP solo en Render; SPF, DKIM y DMARC del dominio verificados.
 
 ## Limitaciones conocidas y siguientes pasos
 
@@ -75,5 +97,5 @@ en este repositorio. Se responde en un máximo de 5 días hábiles.
   instancia. Con una sola instancia (plan actual) no aplica.
 - **Tokens en `sessionStorage`** del navegador. Se mitiga con CSP estricta en el frontend, tokens
   de acceso cortos y rotación; la sesión termina al cerrar la pestaña.
-- Retención de bitácora y de datos personales por definir con Intelecto (Ley de acceso a la
-  información y normativa aplicable).
+- Retención de bitácora, de datos personales y de **datos de alumnos** por definir con Intelecto
+  (normativa aplicable y consentimiento de los padres para guardar los datos del menor).

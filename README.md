@@ -46,3 +46,23 @@ verificación para producción.
 ## Render
 Web Service → Docker → rama `main`. Health check: `/api/v1/health`.
 Variables: `DATABASE_URL` (Neon), `DATABASE_SSL=true`, `JWT_SECRET` (`openssl rand -hex 32`), `CORS_ORIGIN` (URL https de Cloudflare Pages), `NODE_ENV=production`, `FEATURE_*=false`. La API **no arranca** si falta algo o hay valores de ejemplo.
+
+## Correo de comprobantes
+Al cobrar, si el cliente tiene correo, el comprobante (agrupado por alumno, con su licencia) se
+envía solo. Funciona con cualquier proveedor SMTP. Para activarlo, en Render:
+
+| Variable | Ejemplo |
+|---|---|
+| `CORREO_HABILITADO` | `true` |
+| `SMTP_HOST` / `SMTP_PORT` | `smtp-relay.brevo.com` / `587` |
+| `SMTP_USUARIO` / `SMTP_PASSWORD` | credenciales SMTP del proveedor (no la contraseña de un buzón personal) |
+| `CORREO_REMITENTE` | `"Intelecto <comprobantes@dominio-de-intelecto.com>"` |
+| `CORREO_RESPONDER_A` | opcional, p. ej. `ventas@dominio-de-intelecto.com` |
+
+En el DNS del dominio remitente hay que publicar los registros **SPF**, **DKIM** y **DMARC** que
+indique el proveedor; sin ellos, Gmail y Outlook mandan los comprobantes a spam o los rechazan.
+El estado de cada envío se ve en el detalle de la venta (Enviando / Enviado / No se pudo enviar),
+y se puede reenviar a otro correo.
+
+Datos impresos en el comprobante (dirección, teléfono, sitio de las licencias, pie): menú
+**Administración → Configuración**.

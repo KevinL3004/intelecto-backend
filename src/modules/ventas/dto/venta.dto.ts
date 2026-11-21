@@ -5,6 +5,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsEmail,
   IsIn,
   IsInt,
   IsNotEmpty,
@@ -14,6 +15,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { PaginationDto } from '../../../common/dto/pagination.dto';
@@ -24,6 +26,48 @@ const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? val
 export class LineaVentaDto {
   @ApiProperty() @IsInt() libroId: number;
   @ApiProperty({ example: 1 }) @IsInt() @Min(1) @Max(99) cantidad: number;
+}
+
+/** Licencia digital: letras, números y guiones (sin espacios raros ni caracteres de control). */
+export const LICENCIA = /^[A-Za-z0-9][A-Za-z0-9._-]{2,59}$/;
+const mayus = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim().toUpperCase() || undefined : value;
+
+/** Útiles de UN alumno dentro de la venta (un padre puede comprar para varios hijos). */
+export class AlumnoVentaDto {
+  @ApiPropertyOptional({ description: 'Alumno ya registrado' })
+  @IsOptional()
+  @IsInt()
+  alumnoId?: number;
+  @ApiPropertyOptional({ description: 'Alumno nuevo: se registra y se vincula al cliente' })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(100)
+  nombres?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(100)
+  apellidos?: string;
+  @ApiPropertyOptional() @IsOptional() @IsInt() gradoId?: number;
+  @ApiPropertyOptional({ description: 'Combo del grado: aplica su descuento si va completo' })
+  @IsOptional()
+  @IsInt()
+  comboId?: number;
+  @ApiPropertyOptional({ description: 'Número de licencia digital del sitio didáctico' })
+  @IsOptional()
+  @Transform(mayus)
+  @Matches(LICENCIA, { message: 'Licencia inválida: use letras, números y guiones (3 a 60)' })
+  licencia?: string;
+  @ApiProperty({ type: [LineaVentaDto] })
+  @IsArray()
+  @ArrayMinSize(1, { message: 'Agregue al menos un libro para cada alumno' })
+  @ArrayMaxSize(40)
+  @ValidateNested({ each: true })
+  @Type(() => LineaVentaDto)
+  lineas: LineaVentaDto[];
 }
 
 export class PagoDto {
@@ -60,13 +104,25 @@ export class CotizarVentaDto {
   @IsOptional()
   @IsInt()
   comboId?: number;
-  @ApiProperty({ type: [LineaVentaDto] })
+  @ApiPropertyOptional({
+    type: [LineaVentaDto],
+    description: 'Venta sin alumnos (use esto O "alumnos", no ambos)',
+  })
+  @ValidateIf((o: CotizarVentaDto) => !o.alumnos)
   @IsArray()
   @ArrayMinSize(1, { message: 'Agregue al menos un libro' })
   @ArrayMaxSize(60)
   @ValidateNested({ each: true })
   @Type(() => LineaVentaDto)
-  lineas: LineaVentaDto[];
+  lineas?: LineaVentaDto[];
+  @ApiPropertyOptional({ type: [AlumnoVentaDto], description: 'Útiles agrupados por alumno' })
+  @ValidateIf((o: CotizarVentaDto) => !o.lineas)
+  @IsArray()
+  @ArrayMinSize(1, { message: 'Agregue al menos un alumno' })
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => AlumnoVentaDto)
+  alumnos?: AlumnoVentaDto[];
   @ApiPropertyOptional({ description: 'true: se entrega ya; false: el cliente recoge después' })
   @IsOptional()
   @IsBoolean()
@@ -97,6 +153,27 @@ export class CrearVentaDto extends OmitType(CotizarVentaDto, ['pagos'] as const)
   @ValidateNested({ each: true })
   @Type(() => PagoDto)
   pagos: PagoDto[];
+}
+
+export class LicenciaDto {
+  @ApiProperty({ nullable: true, description: 'null para quitarla' })
+  @Transform(mayus)
+  @ValidateIf((o: LicenciaDto) => o.licencia !== null && o.licencia !== undefined)
+  @Matches(LICENCIA, { message: 'Licencia inválida: use letras, números y guiones (3 a 60)' })
+  licencia: string | null;
+}
+
+export class EnviarComprobanteDto {
+  @ApiPropertyOptional({ description: 'Otro correo; por defecto, el del cliente' })
+  @IsOptional()
+  @Transform(trim)
+  @IsEmail({}, { message: 'Correo inválido' })
+  @MaxLength(120)
+  correo?: string;
+  @ApiPropertyOptional({ description: 'Guardar este correo en los datos del cliente' })
+  @IsOptional()
+  @IsBoolean()
+  guardarEnCliente?: boolean;
 }
 
 export class EntregaItemDto {

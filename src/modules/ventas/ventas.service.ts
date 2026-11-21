@@ -27,14 +27,23 @@ import {
   ResultadoPagos,
 } from './reglas-venta';
 import {
+  AlumnoVentaDto,
   AnularVentaDto,
   CotizarVentaDto,
   CrearVentaDto,
   EntregarDto,
+  EnviarComprobanteDto,
   FiltroVentasDto,
+  LicenciaDto,
+  LineaVentaDto,
 } from './dto/venta.dto';
+import { consultarVenta, datosEmpresa } from './consulta-venta';
+import { CorreoService } from '../correo/correo.service';
+import { AlumnosService } from '../alumnos/alumnos.service';
 
 export interface LineaPlan {
+  /** Índice del alumno (bloque) al que pertenece la línea; 0 si la venta no tiene alumnos. */
+  grupo: number;
   libroId: number;
   titulo: string;
   isbn: string | null;
@@ -53,6 +62,8 @@ export interface Cotizacion {
   colegio: string;
   ciclo: number;
   lineas: LineaPlan[];
+  /** Totales por alumno (mismo orden que `alumnos` en la petición). */
+  grupos: { indice: number; subtotal: string; descuento: string; comboAplicado: boolean }[];
   subtotal: string;
   descuento: string;
   comboAplicado: boolean;
@@ -63,12 +74,35 @@ export interface Cotizacion {
   errores: ErrorRegla[];
 }
 
+/** Bloque de libros de un alumno (o de la venta entera si no hay alumnos). */
+interface Grupo {
+  indice: number;
+  alumno: AlumnoVentaDto | null;
+  comboId?: number;
+  lineas: LineaVentaDto[];
+}
+
+const gruposDe = (dto: CotizarVentaDto): Grupo[] => {
+  if (dto.alumnos && dto.lineas)
+    throw new BadRequestException('Envíe los libros por alumno o sin alumnos, no ambos');
+  if (dto.alumnos)
+    return dto.alumnos.map((a, indice) => ({
+      indice,
+      alumno: a,
+      comboId: a.comboId,
+      lineas: a.lineas,
+    }));
+  return [{ indice: 0, alumno: null, comboId: dto.comboId, lineas: dto.lineas ?? [] }];
+};
+
 @Injectable()
 export class VentasService {
   constructor(
     private readonly ds: DataSource,
     private readonly turnos: TurnosService,
     private readonly bitacora: BitacoraService,
+    private readonly correo: CorreoService,
+    private readonly alumnos: AlumnosService,
   ) {}
 
   /** POST /ventas/cotizar: calcula líneas, disponibilidad y pagos sin guardar nada. */
@@ -91,10 +125,14 @@ export class VentasService {
         throw new BusinessError('TURNO_NO_ABIERTO', 'Abra un turno de caja para poder vender');
       const colegioId = this.colegioVenta(u, dto.colegioId, turno.colegioId);
 
-      const [cliente] = await m.query(`SELECT id FROM persona WHERE id = $1 AND activo`, [
-        dto.clienteId,
-      ]);
+      const [cliente] = await m.query(
+        `SELECT id, correo, (nit = 'CF' AND f_norm(nombres || ' ' || apellidos) = 'consumidor final') AS generico
+           FROM persona WHERE id = $1 AND activo`,
+        [dto.clienteId],
+      );
       if (!cliente) throw new BadRequestException('Cliente no encontrado');
+      const grupos = gruposDe(dto);
+      await this.validarAlumnos(m, grupos);
 
       const c = await this.preparar(m, colegioId, dto, true);
       if (c.errores.length) {
@@ -113,8 +151,8 @@ export class VentasService {
         [
           colegioId,
           dto.clienteId,
-          dto.alumno || null,
-          dto.gradoId ?? null,
+          (dto.alumnos ? null : dto.alumno) || null,
+          (dto.alumnos?.length === 1 ? dto.alumnos[0].gradoId : dto.gradoId) ?? null,
           c.ciclo,
           turno.id,
           u.id,
@@ -133,12 +171,43 @@ export class VentasService {
         ],
       );
 
+      // Un registro por alumno (con su licencia); sus líneas quedan ligadas a él.
+      const ventaAlumno = new Map<number, number>();
+      for (const g of grupos) {
+        if (!g.alumno) continue;
+        const alumnoId = await this.resolverAlumno(m, g.alumno, cliente, colegioId, u.id);
+        const r = c.grupos.find((x) => x.indice === g.indice)!;
+        const [va] = await m.query(
+          `INSERT INTO venta_alumno (venta_id, alumno_id, grado_id, combo_id, descuento, licencia, orden)
+           VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+          [
+            v.id,
+            alumnoId,
+            g.alumno.gradoId ?? null,
+            r.comboAplicado ? g.comboId : null,
+            r.descuento,
+            g.alumno.licencia ?? null,
+            g.indice,
+          ],
+        );
+        ventaAlumno.set(g.indice, va.id);
+      }
+      if (ventaAlumno.size)
+        // Nombres de los alumnos en la cabecera, para buscar la venta por alumno.
+        await m.query(
+          `UPDATE venta SET alumno = (
+             SELECT left(string_agg(trim(a.nombres || ' ' || a.apellidos), ', ' ORDER BY va.orden), 150)
+               FROM venta_alumno va JOIN alumno a ON a.id = va.alumno_id WHERE va.venta_id = $1)
+            WHERE id = $1`,
+          [v.id],
+        );
+
       for (const l of c.lineas) {
         const entregado = l.estado === 'ENTREGADO' ? l.cantidad : 0;
         const [d] = await m.query(
           `INSERT INTO venta_detalle (venta_id, libro_id, cantidad, cantidad_entregada, precio_unitario,
-                                      subtotal, estado, colegio_origen_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+                                      subtotal, estado, colegio_origen_id, venta_alumno_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
           [
             v.id,
             l.libroId,
@@ -148,6 +217,7 @@ export class VentasService {
             l.subtotal,
             l.estado,
             l.colegioOrigenId,
+            ventaAlumno.get(l.grupo) ?? null,
           ],
         );
         if (l.estado === 'ENTREGADO') {
@@ -205,56 +275,208 @@ export class VentasService {
           accion: 'VENTA',
           entidad: 'venta',
           entidadId: v.id,
-          despues: { codigo: v.codigo, total: pagos.total, lineas: c.lineas.length },
+          despues: {
+            codigo: v.codigo,
+            total: pagos.total,
+            lineas: c.lineas.length,
+            alumnos: ventaAlumno.size,
+          },
           ip,
         },
         m,
       );
+      // El comprobante se envía solo si el cliente tiene correo (y el envío está habilitado).
+      if (cliente.correo && !cliente.generico)
+        await this.correo.encolarComprobante(m, v.id, cliente.correo, u.id);
       return v.id as number;
     });
     return this.obtener(ventaId, u);
   }
 
-  async obtener(id: number, u: UsuarioActual) {
-    const [v] = await this.ds.query(
-      `SELECT v.id, v.codigo, v.canal, v.colegio_id AS "colegioId", co.nombre AS colegio, v.ciclo,
-              v.cliente_id AS "clienteId", trim(pc.nombres || ' ' || pc.apellidos) AS cliente, pc.nit,
-              v.alumno, v.grado_id AS "gradoId", g.nombre AS grado,
-              v.subtotal, v.descuento, v.recargo, v.total, v.estado_pago AS "estadoPago",
-              v.estado_entrega AS "estadoEntrega", v.observacion, v.fecha,
-              v.usuario_id AS "usuarioId", us.username AS usuario, ca.numero AS "cajaNumero",
-              v.motivo_anulacion AS "motivoAnulacion", v.anulada_en AS "anuladaEn",
-              (SELECT username FROM usuario WHERE id = v.anulada_por) AS "anuladaPor"
-         FROM venta v
-         JOIN colegio co ON co.id = v.colegio_id
-         JOIN persona pc ON pc.id = v.cliente_id
-         LEFT JOIN grado g ON g.id = v.grado_id
-         LEFT JOIN usuario us ON us.id = v.usuario_id
-         LEFT JOIN turno_caja t ON t.id = v.turno_id LEFT JOIN caja ca ON ca.id = t.caja_id
-        WHERE v.id = $1`,
-      [id],
+  /** Comprobante para imprimir: la venta agrupada por alumno y los datos del emisor. */
+  async comprobante(id: number, u: UsuarioActual) {
+    const venta = await this.obtener(id, u);
+    return { venta, empresa: await datosEmpresa(this.ds) };
+  }
+
+  /** Reenvía el comprobante por correo (al del cliente o a otro). */
+  async enviarComprobante(id: number, dto: EnviarComprobanteDto, u: UsuarioActual, ip: string) {
+    const v = await this.obtener(id, u);
+    if (!this.correo.habilitado)
+      throw new BusinessError(
+        'CORREO_NO_CONFIGURADO',
+        'El envío de correos aún no está configurado en el sistema',
+        503,
+      );
+    const destino = dto.correo ?? v.clienteCorreo;
+    if (!destino)
+      throw new BusinessError('SIN_CORREO', 'El cliente no tiene correo; escriba uno para enviar');
+    await this.ds.transaction(async (m) => {
+      if (dto.correo && dto.guardarEnCliente) {
+        const [p] = await m.query(
+          `SELECT correo, (nit = 'CF' AND f_norm(nombres || ' ' || apellidos) = 'consumidor final') AS generico
+             FROM persona WHERE id = $1`,
+          [v.clienteId],
+        );
+        // Un cajero solo completa el correo si faltaba; cambiar uno existente es de Admin/Contador
+        // (evita desviar los comprobantes de un cliente a otra dirección).
+        if (p?.correo && p.correo !== dto.correo && u.rol === Rol.CAJERO)
+          throw new BusinessError(
+            'CORREO_YA_REGISTRADO',
+            'El cliente ya tiene un correo registrado; solo un administrador o contador puede cambiarlo',
+            403,
+          );
+        if (p && !p.generico) {
+          await m.query(`UPDATE persona SET correo = $2 WHERE id = $1`, [v.clienteId, dto.correo]);
+          await this.bitacora.registrar(
+            {
+              usuarioId: u.id,
+              accion: 'EDITAR',
+              entidad: 'persona',
+              entidadId: v.clienteId,
+              antes: { correo: p.correo },
+              despues: { correo: dto.correo },
+              ip,
+            },
+            m,
+          );
+        }
+      }
+      await this.correo.encolarComprobante(m, id, destino, u.id);
+      await this.bitacora.registrar(
+        {
+          usuarioId: u.id,
+          accion: 'ENVIAR_COMPROBANTE',
+          entidad: 'venta',
+          entidadId: id,
+          despues: { destinatario: destino },
+          ip,
+        },
+        m,
+      );
+    });
+    return this.obtener(id, u);
+  }
+
+  /** Corrige la licencia digital de un alumno de la venta (queda en bitácora). */
+  async editarLicencia(
+    id: number,
+    ventaAlumnoId: number,
+    dto: LicenciaDto,
+    u: UsuarioActual,
+    ip: string,
+  ) {
+    await this.ds.transaction(async (m) => {
+      const v = await this.bloquearVenta(m, id);
+      if (u.rol === Rol.CAJERO && v.colegioId !== u.colegioId)
+        throw new ForbiddenException('Solo puede modificar ventas de su colegio');
+      if (v.estadoPago !== 'PAGADA')
+        throw new BusinessError('VENTA_ANULADA', 'La venta está anulada');
+      const [va] = await m.query(
+        `SELECT id, licencia FROM venta_alumno WHERE id = $1 AND venta_id = $2 FOR UPDATE`,
+        [ventaAlumnoId, id],
+      );
+      if (!va) throw new NotFoundException('El alumno no pertenece a esta venta');
+      const nueva = dto.licencia ?? null;
+      if (nueva) await this.licenciasLibres(m, [nueva], ventaAlumnoId);
+      await m.query(`UPDATE venta_alumno SET licencia = $2 WHERE id = $1`, [va.id, nueva]);
+      await this.bitacora.registrar(
+        {
+          usuarioId: u.id,
+          accion: 'EDITAR_LICENCIA',
+          entidad: 'venta',
+          entidadId: id,
+          antes: { ventaAlumnoId, licencia: va.licencia },
+          despues: { ventaAlumnoId, licencia: nueva },
+          ip,
+        },
+        m,
+      );
+    });
+    return this.obtener(id, u);
+  }
+
+  // ---------- alumnos de la venta ----------
+
+  /** Reglas antes de guardar: cada alumno identificado, sin repetir, licencias únicas. */
+  private async validarAlumnos(m: EntityManager, grupos: Grupo[]) {
+    const conAlumno = grupos.filter((g) => g.alumno);
+    for (const g of conAlumno)
+      if (!g.alumno!.alumnoId && !g.alumno!.nombres)
+        throw new BadRequestException('Escriba el nombre de cada alumno');
+    const ids = conAlumno.map((g) => g.alumno!.alumnoId).filter(Boolean);
+    if (new Set(ids).size !== ids.length)
+      throw new BadRequestException('Un mismo alumno aparece dos veces en la venta');
+    const licencias = conAlumno.map((g) => g.alumno!.licencia).filter((x): x is string => !!x);
+    if (new Set(licencias).size !== licencias.length)
+      throw new BusinessError('LICENCIA_DUPLICADA', 'Hay una licencia repetida en la venta', 409);
+    if (licencias.length) await this.licenciasLibres(m, licencias);
+  }
+
+  /** Una licencia solo se vende una vez (salvo que su venta se haya anulado). */
+  private async licenciasLibres(m: EntityManager, licencias: string[], excepto?: number) {
+    // Bloqueo por licencia: dos cajas no pueden registrar la misma a la vez.
+    for (const l of [...licencias].sort())
+      await m.query(`SELECT pg_advisory_xact_lock(hashtext('licencia:' || upper($1)))`, [l]);
+    const [usada] = await m.query(
+      `SELECT va.licencia, v.codigo FROM venta_alumno va JOIN venta v ON v.id = va.venta_id
+        WHERE upper(va.licencia) = ANY($1::text[]) AND v.estado_pago <> 'ANULADA'
+          AND ($2::bigint IS NULL OR va.id <> $2) LIMIT 1`,
+      [licencias.map((l) => l.toUpperCase()), excepto ?? null],
     );
+    if (usada)
+      throw new BusinessError(
+        'LICENCIA_DUPLICADA',
+        `La licencia ${usada.licencia} ya se registró en la venta ${usada.codigo}`,
+        409,
+      );
+  }
+
+  /**
+   * Alumno de la venta: el registrado (alumnoId) o uno nuevo. Si el cliente ya tiene un alumno
+   * con el mismo nombre, se reutiliza. Queda vinculado al cliente (salvo Consumidor Final genérico).
+   */
+  private async resolverAlumno(
+    m: EntityManager,
+    a: AlumnoVentaDto,
+    cliente: { id: number; generico: boolean },
+    colegioId: number,
+    usuarioId: number,
+  ): Promise<number> {
+    let id = a.alumnoId;
+    if (id) {
+      const [x] = await m.query(`SELECT id FROM alumno WHERE id = $1 AND activo`, [id]);
+      if (!x) throw new BadRequestException('Alumno no encontrado o inactivo');
+    } else if (!cliente.generico) {
+      const [x] = await m.query(
+        `SELECT a.id FROM alumno a JOIN persona_alumno pa ON pa.alumno_id = a.id AND pa.persona_id = $1
+          WHERE a.activo AND f_norm(a.nombres || ' ' || a.apellidos) = f_norm($2) LIMIT 1`,
+        [cliente.id, `${a.nombres} ${a.apellidos ?? ''}`.trim()],
+      );
+      id = x?.id;
+    }
+    if (!id) {
+      const [x] = await m.query(
+        `INSERT INTO alumno (nombres, apellidos, colegio_id, grado_id, creado_por)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [a.nombres, a.apellidos ?? '', colegioId, a.gradoId ?? null, usuarioId],
+      );
+      id = x.id as number;
+    } else
+      await m.query(
+        `UPDATE alumno SET colegio_id = $2, grado_id = coalesce($3, grado_id) WHERE id = $1`,
+        [id, colegioId, a.gradoId ?? null],
+      );
+    if (!cliente.generico) await this.alumnos.vincularEn(m, id, cliente.id);
+    return id;
+  }
+
+  async obtener(id: number, u: UsuarioActual) {
+    const v = await consultarVenta(this.ds, id);
     if (!v) throw new NotFoundException('Venta no encontrada');
     if (u.rol === Rol.CAJERO && v.usuarioId !== u.id && v.colegioId !== u.colegioId)
       throw new ForbiddenException('No puede ver esta venta');
-    const lineas = await this.ds.query(
-      `SELECT d.id, d.libro_id AS "libroId", l.titulo, l.isbn, d.cantidad, d.cantidad_entregada AS "cantidadEntregada",
-              d.precio_unitario AS "precioUnitario", d.subtotal, d.estado,
-              d.colegio_origen_id AS "colegioOrigenId", co.nombre AS "colegioOrigen"
-         FROM venta_detalle d JOIN libro l ON l.id = d.libro_id
-         LEFT JOIN colegio co ON co.id = d.colegio_origen_id
-        WHERE d.venta_id = $1 ORDER BY l.titulo, d.id`,
-      [id],
-    );
-    const pagos = await this.ds.query(
-      `SELECT p.id, mp.codigo AS metodo, mp.nombre, p.medio, p.monto_base AS "montoBase",
-              p.recargo_pct AS "recargoPct", p.recargo, p.monto_total AS "montoTotal",
-              p.recibido, p.vuelto, p.referencia, p.anulado
-         FROM venta_pago p JOIN metodo_pago mp ON mp.id = p.metodo_pago_id
-        WHERE p.venta_id = $1 ORDER BY p.id`,
-      [id],
-    );
-    return { ...v, lineas, pagos };
+    return v;
   }
 
   async listar(f: FiltroVentasDto, u: UsuarioActual) {
@@ -525,9 +747,15 @@ export class VentasService {
     bloquear: boolean,
   ): Promise<Cotizacion> {
     const errores: ErrorRegla[] = [];
-    const ids = dto.lineas.map((l) => l.libroId);
-    if (new Set(ids).size !== ids.length)
-      throw new BadRequestException('Hay libros repetidos; ajuste la cantidad en una sola línea');
+    const grupos = gruposDe(dto);
+    for (const g of grupos) {
+      const ids = g.lineas.map((l) => l.libroId);
+      if (new Set(ids).size !== ids.length)
+        throw new BadRequestException(
+          'Hay libros repetidos para un mismo alumno; ajuste la cantidad en una sola línea',
+        );
+    }
+    const ids = [...new Set(grupos.flatMap((g) => g.lineas.map((l) => l.libroId)))];
 
     const [col] = await m.query(`SELECT id, nombre FROM colegio WHERE id = $1 AND activo`, [
       colegioId,
@@ -549,93 +777,116 @@ export class VentasService {
     );
     const porLibro = new Map(libros.map((l) => [l.id, l]));
 
-    let stock: Map<number, { disponible: number }>;
-    if (bloquear) stock = await bloquearStock(m, colegioId, ids);
+    // Disponible por libro; se va descontando a medida que se asigna a cada alumno
+    // (dos hermanos que llevan el mismo libro comparten la misma existencia).
+    const disponible = new Map<number, number>();
+    if (bloquear)
+      for (const [id, x] of await bloquearStock(m, colegioId, ids))
+        disponible.set(id, x.disponible);
     else {
       const filas: { libroId: number; disponible: number }[] = await m.query(
         `SELECT libro_id AS "libroId", existencia - reservado AS disponible FROM inventario
           WHERE colegio_id = $1 AND libro_id = ANY($2::bigint[])`,
         [colegioId, ids],
       );
-      stock = new Map(filas.map((f) => [f.libroId, f]));
+      for (const f of filas) disponible.set(f.libroId, f.disponible);
     }
 
     const entregarAhora = dto.entregarAhora ?? true;
     const lineas: LineaPlan[] = [];
-    for (const pedida of dto.lineas) {
-      const l = porLibro.get(pedida.libroId);
-      const base = {
-        libroId: pedida.libroId,
-        titulo: l?.titulo ?? '¿?',
-        isbn: l?.isbn ?? null,
-        precio: l?.precio ?? null,
-        colegioOrigenId: null,
-        colegioOrigen: null,
-      };
-      if (!l || !l.activo || l.precio === null) {
-        const msg =
-          !l || !l.activo
-            ? 'Libro no encontrado o inactivo'
-            : `"${l.titulo}" no tiene precio en ${col.nombre} para el ciclo ${ciclo}`;
-        errores.push({ error: 'PRECIO_NO_DEFINIDO', message: msg });
-        lineas.push({
-          ...base,
-          cantidad: pedida.cantidad,
-          subtotal: '0.00',
-          estado: null,
-          error: msg,
-        });
-        continue;
-      }
-      const { conStock, sinStock } = repartir(pedida.cantidad, stock.get(l.id)?.disponible ?? 0);
-      const sub = (q: number) => money(l.precio!).mul(q).toFixed(2);
-      if (conStock > 0)
-        lineas.push({
-          ...base,
-          cantidad: conStock,
-          subtotal: sub(conStock),
-          estado: entregarAhora ? 'ENTREGADO' : 'RESERVADO',
-          error: null,
-        });
-      if (sinStock > 0) {
-        // RN-12/13: si otro colegio tiene excedente → traslado (sugiere el de mayor excedente).
-        const [origen] = await m.query(
-          `SELECT d.colegio_id AS id, c.nombre FROM v_disponibilidad d JOIN colegio c ON c.id = d.colegio_id
-            WHERE d.libro_id = $1 AND d.colegio_id <> $2 AND d.excedente > 0 AND c.activo
-            ORDER BY d.excedente DESC LIMIT 1`,
-          [l.id, colegioId],
-        );
-        lineas.push({
-          ...base,
-          cantidad: sinStock,
-          subtotal: sub(sinStock),
-          estado: origen ? 'PENDIENTE_TRASLADO' : 'PENDIENTE_PROVEEDOR',
-          colegioOrigenId: origen?.id ?? null,
-          colegioOrigen: origen?.nombre ?? null,
-          error: null,
-        });
-      }
-    }
-
-    const subtotal = lineas.reduce((a, l) => a.plus(l.subtotal), new Decimal(0));
-    let descuento = new Decimal(0);
-    let comboAplicado = false;
-    if (dto.comboId) {
-      const [combo] = await m.query(
-        `SELECT id, descuento FROM combo WHERE id = $1 AND colegio_id = $2 AND ciclo = $3 AND activo`,
-        [dto.comboId, colegioId, ciclo],
-      );
-      if (combo) {
-        const libroscombo: { libroId: number; cantidad: number }[] = await m.query(
-          `SELECT libro_id AS "libroId", cantidad FROM combo_libro WHERE combo_id = $1`,
-          [combo.id],
-        );
-        if (comboCompleto(libroscombo, dto.lineas)) {
-          descuento = Decimal.min(money(combo.descuento), subtotal);
-          comboAplicado = descuento.gt(0);
+    const origenes = new Map<number, { id: number; nombre: string } | null>();
+    for (const g of grupos)
+      for (const pedida of g.lineas) {
+        const l = porLibro.get(pedida.libroId);
+        const base = {
+          grupo: g.indice,
+          libroId: pedida.libroId,
+          titulo: l?.titulo ?? '¿?',
+          isbn: l?.isbn ?? null,
+          precio: l?.precio ?? null,
+          colegioOrigenId: null,
+          colegioOrigen: null,
+        };
+        if (!l || !l.activo || l.precio === null) {
+          const msg =
+            !l || !l.activo
+              ? 'Libro no encontrado o inactivo'
+              : `"${l.titulo}" no tiene precio en ${col.nombre} para el ciclo ${ciclo}`;
+          errores.push({ error: 'PRECIO_NO_DEFINIDO', message: msg });
+          lineas.push({
+            ...base,
+            cantidad: pedida.cantidad,
+            subtotal: '0.00',
+            estado: null,
+            error: msg,
+          });
+          continue;
+        }
+        const { conStock, sinStock } = repartir(pedida.cantidad, disponible.get(l.id) ?? 0);
+        disponible.set(l.id, (disponible.get(l.id) ?? 0) - conStock);
+        const sub = (q: number) => money(l.precio!).mul(q).toFixed(2);
+        if (conStock > 0)
+          lineas.push({
+            ...base,
+            cantidad: conStock,
+            subtotal: sub(conStock),
+            estado: entregarAhora ? 'ENTREGADO' : 'RESERVADO',
+            error: null,
+          });
+        if (sinStock > 0) {
+          // RN-12/13: si otro colegio tiene excedente → traslado (sugiere el de mayor excedente).
+          if (!origenes.has(l.id)) {
+            const [o] = await m.query(
+              `SELECT d.colegio_id AS id, c.nombre FROM v_disponibilidad d JOIN colegio c ON c.id = d.colegio_id
+                WHERE d.libro_id = $1 AND d.colegio_id <> $2 AND d.excedente > 0 AND c.activo
+                ORDER BY d.excedente DESC LIMIT 1`,
+              [l.id, colegioId],
+            );
+            origenes.set(l.id, o ?? null);
+          }
+          const origen = origenes.get(l.id);
+          lineas.push({
+            ...base,
+            cantidad: sinStock,
+            subtotal: sub(sinStock),
+            estado: origen ? 'PENDIENTE_TRASLADO' : 'PENDIENTE_PROVEEDOR',
+            colegioOrigenId: origen?.id ?? null,
+            colegioOrigen: origen?.nombre ?? null,
+            error: null,
+          });
         }
       }
+
+    // Descuento de combo por alumno: cada uno con su combo completo.
+    const resumen: Cotizacion['grupos'] = [];
+    for (const g of grupos) {
+      const subtotalG = lineas
+        .filter((l) => l.grupo === g.indice)
+        .reduce((a, l) => a.plus(l.subtotal), new Decimal(0));
+      let descuentoG = new Decimal(0);
+      if (g.comboId) {
+        const [combo] = await m.query(
+          `SELECT id, descuento FROM combo WHERE id = $1 AND colegio_id = $2 AND ciclo = $3 AND activo`,
+          [g.comboId, colegioId, ciclo],
+        );
+        if (combo) {
+          const libroscombo: { libroId: number; cantidad: number }[] = await m.query(
+            `SELECT libro_id AS "libroId", cantidad FROM combo_libro WHERE combo_id = $1`,
+            [combo.id],
+          );
+          if (comboCompleto(libroscombo, g.lineas))
+            descuentoG = Decimal.min(money(combo.descuento), subtotalG);
+        }
+      }
+      resumen.push({
+        indice: g.indice,
+        subtotal: subtotalG.toFixed(2),
+        descuento: descuentoG.toFixed(2),
+        comboAplicado: descuentoG.gt(0),
+      });
     }
+    const subtotal = lineas.reduce((a, l) => a.plus(l.subtotal), new Decimal(0));
+    const descuento = resumen.reduce((a, g) => a.plus(g.descuento), new Decimal(0));
     const aPagar = subtotal.minus(descuento);
 
     const metodos: MetodoVigente[] = await m.query(
@@ -652,9 +903,10 @@ export class VentasService {
       colegio: col.nombre,
       ciclo,
       lineas,
+      grupos: resumen,
       subtotal: subtotal.toFixed(2),
       descuento: descuento.toFixed(2),
-      comboAplicado,
+      comboAplicado: resumen.some((g) => g.comboAplicado),
       aPagar: aPagar.toFixed(2),
       pagos,
       metodos,

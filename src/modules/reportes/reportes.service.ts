@@ -274,11 +274,60 @@ export class ReportesService {
         q.rango('v.fecha', f.desde, f.hasta);
         return {
           sql: `SELECT v.codigo, v.fecha, ((now() AT TIME ZONE ${TZ})::date - (v.fecha AT TIME ZONE ${TZ})::date) AS dias, co.nombre AS colegio,
-                       trim(pc.nombres || ' ' || pc.apellidos) AS cliente, pc.telefono, v.alumno, l.titulo,
+                       trim(pc.nombres || ' ' || pc.apellidos) AS cliente, pc.telefono,
+                       coalesce(trim(a.nombres || ' ' || a.apellidos), v.alumno) AS alumno, l.titulo,
                        (d.cantidad - d.cantidad_entregada) AS cantidad, d.estado
                   FROM venta_detalle d JOIN venta v ON v.id = d.venta_id JOIN libro l ON l.id = d.libro_id
                   JOIN colegio co ON co.id = v.colegio_id JOIN persona pc ON pc.id = v.cliente_id
+                  LEFT JOIN venta_alumno va ON va.id = d.venta_alumno_id LEFT JOIN alumno a ON a.id = va.alumno_id
                   ${q.sql} ORDER BY v.fecha, v.codigo LIMIT ${q.p(limite)}`,
+          params: q.params,
+        };
+      },
+    },
+
+    // Alumnos atendidos: un renglón por alumno y venta, con su encargado, útiles y licencia.
+    alumnos: {
+      titulo: 'Alumnos y licencias',
+      columnas: [
+        c('codigo', 'Venta'),
+        c('fecha', 'Fecha', 'fecha'),
+        c('colegio', 'Colegio'),
+        c('grado', 'Grado'),
+        c('alumno', 'Alumno'),
+        c('encargado', 'Padre / encargado'),
+        c('telefono', 'Teléfono'),
+        c('correo', 'Correo'),
+        c('licencia', 'Licencia digital'),
+        c('libros', 'Útiles'),
+        c('unidades', 'Unidades', 'entero'),
+        c('total', 'Total alumno', 'dinero'),
+        c('estado', 'Estado'),
+      ],
+      sumar: ['unidades', 'total'],
+      cuentaParaTotal: (r) => r.estado !== 'ANULADA',
+      consulta: (f, _u, limite) => {
+        const q = new Filtros();
+        q.rango('v.fecha', f.desde, f.hasta);
+        if (f.colegioId) q.add(`v.colegio_id = ${q.p(f.colegioId)}`);
+        if (f.estado) q.add(`v.estado_pago = ${q.p(f.estado)}`);
+        return {
+          sql: `SELECT v.codigo, v.fecha, co.nombre AS colegio, g.nombre AS grado,
+                       trim(a.nombres || ' ' || a.apellidos) AS alumno,
+                       trim(pc.nombres || ' ' || pc.apellidos) AS encargado, pc.telefono, pc.correo,
+                       va.licencia,
+                       (SELECT string_agg(d.cantidad || ' × ' || l.titulo, ', ' ORDER BY l.titulo)
+                          FROM venta_detalle d JOIN libro l ON l.id = d.libro_id
+                         WHERE d.venta_alumno_id = va.id) AS libros,
+                       (SELECT coalesce(sum(d.cantidad), 0) FROM venta_detalle d
+                         WHERE d.venta_alumno_id = va.id)::int AS unidades,
+                       ((SELECT coalesce(sum(d.subtotal), 0) FROM venta_detalle d
+                          WHERE d.venta_alumno_id = va.id) - va.descuento)::numeric(12,2)::text AS total,
+                       v.estado_pago AS estado
+                  FROM venta_alumno va JOIN venta v ON v.id = va.venta_id JOIN alumno a ON a.id = va.alumno_id
+                  JOIN colegio co ON co.id = v.colegio_id JOIN persona pc ON pc.id = v.cliente_id
+                  LEFT JOIN grado g ON g.id = va.grado_id
+                  ${q.sql} ORDER BY v.fecha DESC, v.codigo, va.orden LIMIT ${q.p(limite)}`,
           params: q.params,
         };
       },

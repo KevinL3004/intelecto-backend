@@ -42,6 +42,17 @@ export function validateEnv(config: Record<string, unknown>) {
       errores.push('CORS_ORIGIN (en producción solo https://)');
   }
 
+  // Correo saliente (comprobantes): si se habilita, todo lo necesario debe estar.
+  if (bool(String(config.CORREO_HABILITADO ?? ''))) {
+    for (const clave of ['SMTP_HOST', 'SMTP_USUARIO', 'SMTP_PASSWORD', 'CORREO_REMITENTE'])
+      if (!String(config[clave] ?? '').trim())
+        errores.push(`${clave} (requerido con CORREO_HABILITADO)`);
+    const puerto = Number(config.SMTP_PORT ?? 587);
+    if (!Number.isInteger(puerto) || puerto < 1 || puerto > 65535) errores.push('SMTP_PORT');
+    if (env.NODE_ENV === 'production' && String(config.SMTP_REQUIERE_TLS ?? 'true') === 'false')
+      errores.push('SMTP_REQUIERE_TLS (en producción el correo siempre va cifrado)');
+  }
+
   if (errores.length)
     // Solo nombres de variables: nunca se imprimen los valores (podrían ser secretos).
     throw new Error(`Variables de entorno inválidas: ${errores.join(', ')}`);

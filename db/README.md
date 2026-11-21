@@ -39,8 +39,14 @@ DATABASE_SSL=true npm run usuario:password -- admin     # contraseña del primer
 ## Migraciones
 Nunca editar `01_schema.sql` después de producción. Cada cambio nuevo va en `db/sql/migrations/V00N__descripcion.sql` (siguiente número libre). En un volumen nuevo de Docker se aplican solas; en una BD existente (local o Neon) se aplican a mano:
 ```bash
-docker exec -i intelecto_postgres psql -U intelecto -d intelecto < db/sql/migrations/V003__busqueda_sin_tildes.sql
+docker exec -i intelecto_postgres psql -U intelecto -d intelecto < db/sql/migrations/V005__alumnos_licencias_correo.sql
 ```
+
+| Migración | Qué agrega |
+|---|---|
+| V003 | Búsquedas sin tildes (`unaccent`, `f_norm`) |
+| V004 | Sesiones revocables con rotación de refresh token |
+| V005 | Alumnos y encargados, ventas por alumno con licencia digital, bandeja de correo y datos del comprobante |
 
 ## Respaldo
 ```bash
