@@ -16,11 +16,11 @@ Los scripts de `db/sql/` solo se ejecutan la **primera vez** (volumen vacío). P
 docker compose down -v && docker compose up -d
 ```
 
-Usuario inicial del sistema: `admin` / `Intelecto2026!` (pide cambiar la contraseña).
+Usuario inicial: `admin` **sin contraseña utilizable**. Asignarla con `npm run usuario:password -- admin` (o cargar los datos de prueba en local).
 
 ## Datos de prueba (solo local)
 Colegios, libros, precios, combos, inventario, cajas, clientes y un usuario por rol
-(contraseña de todos: `Prueba2026!`): `contador`, `cajero.norte`, `cajero.sur`.
+(contraseña de todos: `Prueba2026!`): `admin` (si no tenía), `contador`, `cajero.norte`, `cajero.sur`.
 ```bash
 docker exec -i intelecto_postgres psql -U intelecto -d intelecto < db/sql/demo/03_datos_prueba.sql
 ```
@@ -33,6 +33,7 @@ export DATABASE_URL="postgresql://USUARIO:CLAVE@HOST.neon.tech/intelecto?sslmode
 psql "$DATABASE_URL" -f db/sql/01_schema.sql
 psql "$DATABASE_URL" -f db/sql/02_seed.sql
 for f in db/sql/migrations/V*.sql; do psql "$DATABASE_URL" -f "$f"; done
+DATABASE_SSL=true npm run usuario:password -- admin     # contraseña del primer admin
 ```
 
 ## Migraciones

@@ -3,7 +3,7 @@
 API REST del Sistema de Ventas Intelecto (NestJS + TypeORM + PostgreSQL).
 
 ## Requisitos
-Node 20 y Docker. La BD vive en `db/` (ver [db/README.md](db/README.md)).
+Node 22+ (`nvm use`, ver `.nvmrc`) y Docker. La BD vive en `db/` (ver [db/README.md](db/README.md)).
 
 ## Desarrollo
 ```bash
@@ -14,7 +14,9 @@ npm run start:dev
 ```
 - API: http://localhost:3000/api/v1
 - Swagger: http://localhost:3000/api/docs
-- Usuario inicial: `admin` / `Intelecto2026!`
+- Usuario inicial: `admin` **sin contraseña**. Asignarla con `npm run usuario:password -- admin`
+  (la pide sin mostrarla; obliga a cambiarla al entrar). En local, `db/sql/demo/03_datos_prueba.sql`
+  le asigna `Prueba2026!` si aún no tiene.
 
 ## Con Docker
 ```bash
@@ -37,6 +39,10 @@ docker compose logs -f api
 - Fase 2: rutas con `@Feature('PORTAL_CLIENTES' | 'PAGOS_LINEA' | 'FEL')` responden 404 mientras la bandera esté en `false`.
 - Todo cambio de datos registra bitácora (`BitacoraService.registrar`).
 
+## Seguridad
+Ver [SECURITY.md](SECURITY.md): controles implementados, cómo reportar vulnerabilidades y lista de
+verificación para producción.
+
 ## Render
 Web Service → Docker → rama `main`. Health check: `/api/v1/health`.
-Variables: `DATABASE_URL` (Neon), `DATABASE_SSL=true`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `CORS_ORIGIN` (URL de Cloudflare Pages), `NODE_ENV=production`, `FEATURE_*=false`.
+Variables: `DATABASE_URL` (Neon), `DATABASE_SSL=true`, `JWT_SECRET` (`openssl rand -hex 32`), `CORS_ORIGIN` (URL https de Cloudflare Pages), `NODE_ENV=production`, `FEATURE_*=false`. La API **no arranca** si falta algo o hay valores de ejemplo.
