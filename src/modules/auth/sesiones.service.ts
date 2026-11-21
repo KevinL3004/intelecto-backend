@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { BitacoraService } from '../bitacora/bitacora.service';
 import { sesionCache } from '../../common/guards/estado-usuario';
+import { filas } from '../../common/utils/filas';
 
 /** Sin actividad por más de este tiempo, la sesión expira aunque no haya llegado a su vida máxima. */
 const INACTIVIDAD_MAX_MS = 12 * 60 * 60 * 1000;
@@ -130,11 +131,13 @@ export class SesionesService {
 
   /** Revoca todas las sesiones del usuario (opcionalmente, menos la actual). */
   async revocarTodas(usuarioId: number, motivo: MotivoRevocacion, excepto?: string) {
-    const ids: { id: string }[] = await this.ds.query(
-      `UPDATE sesion SET revocada_en = now(), motivo_revocacion = $2
+    const ids = filas<{ id: string }>(
+      await this.ds.query(
+        `UPDATE sesion SET revocada_en = now(), motivo_revocacion = $2
         WHERE usuario_id = $1 AND revocada_en IS NULL AND ($3::uuid IS NULL OR id <> $3)
         RETURNING id`,
-      [usuarioId, motivo, excepto ?? null],
+        [usuarioId, motivo, excepto ?? null],
+      ),
     );
     ids.forEach((x) => sesionCache.invalidar(x.id));
     return ids.length;

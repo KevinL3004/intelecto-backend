@@ -17,6 +17,7 @@ import {
   ItemCantidadDto,
   RecibirTrasladoDto,
 } from './dto/traslado.dto';
+import { filas } from '../../common/utils/filas';
 
 const ref = (id: number) => `T-${id}`;
 
@@ -244,10 +245,12 @@ export class TrasladosService {
           422,
         );
       // Las líneas que esperaban este traslado vuelven a "pendiente" y se reservan FIFO con lo que llegó.
-      const revertidas: { ventaId: number }[] = await m.query(
-        `UPDATE venta_detalle SET estado = 'PENDIENTE_TRASLADO', traslado_id = NULL
+      const revertidas = filas<{ ventaId: number }>(
+        await m.query(
+          `UPDATE venta_detalle SET estado = 'PENDIENTE_TRASLADO', traslado_id = NULL
           WHERE traslado_id = $1 AND estado = 'EN_TRANSITO' RETURNING venta_id AS "ventaId"`,
-        [id],
+          [id],
+        ),
       );
       await compactarLineas(
         m,

@@ -19,6 +19,7 @@ import {
   FiltroPedidosDto,
   RecepcionDto,
 } from './dto/proveedor.dto';
+import { filas } from '../../common/utils/filas';
 
 const ref = (id: number) => `P-${id}`;
 const CAMPOS = `id, nombre, nit, contacto, telefono, correo, activo`;
@@ -90,18 +91,20 @@ export class ProveedoresService {
   async editarProveedor(id: number, dto: EditarProveedorDto, usuarioId: number, ip: string) {
     const antes = await this.proveedor(id);
     const d = { ...antes, ...dto };
-    const [p] = await this.ds.query(
-      `UPDATE proveedor SET nombre = $2, nit = $3, contacto = $4, telefono = $5, correo = $6, activo = $7
+    const [p] = filas<Record<string, unknown>>(
+      await this.ds.query(
+        `UPDATE proveedor SET nombre = $2, nit = $3, contacto = $4, telefono = $5, correo = $6, activo = $7
         WHERE id = $1 RETURNING ${CAMPOS}`,
-      [
-        id,
-        d.nombre,
-        d.nit ? String(d.nit).toUpperCase() : null,
-        d.contacto,
-        d.telefono,
-        d.correo,
-        d.activo,
-      ],
+        [
+          id,
+          d.nombre,
+          d.nit ? String(d.nit).toUpperCase() : null,
+          d.contacto,
+          d.telefono,
+          d.correo,
+          d.activo,
+        ],
+      ),
     );
     await this.bitacora.registrar({
       usuarioId,
@@ -344,10 +347,12 @@ export class ProveedoresService {
 
   /** Las ventas que seguían esperando este pedido vuelven a "pendiente de proveedor". */
   private async liberarLineas(m: EntityManager, pedidoId: number) {
-    const r: { ventaId: number }[] = await m.query(
-      `UPDATE venta_detalle SET estado = 'PENDIENTE_PROVEEDOR', pedido_proveedor_id = NULL
+    const r = filas<{ ventaId: number }>(
+      await m.query(
+        `UPDATE venta_detalle SET estado = 'PENDIENTE_PROVEEDOR', pedido_proveedor_id = NULL
         WHERE pedido_proveedor_id = $1 AND estado = 'EN_PEDIDO' RETURNING venta_id AS "ventaId"`,
-      [pedidoId],
+        [pedidoId],
+      ),
     );
     await compactarLineas(
       m,
