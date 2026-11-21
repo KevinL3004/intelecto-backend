@@ -18,7 +18,7 @@ import { PaginationDto } from '../../../common/dto/pagination.dto';
 
 export class FiltroInventarioDto {
   @IsOptional() @Type(() => Number) @IsInt() colegioId?: number;
-  @IsOptional() @IsString() q?: string;
+  @IsOptional() @IsString() @MaxLength(100) q?: string;
   @IsOptional() @IsIn(['true', 'false']) soloConExistencia?: 'true' | 'false';
 }
 

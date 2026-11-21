@@ -206,6 +206,7 @@ export class AnularVentaDto {
 export class FiltroVentasDto extends PaginationDto {
   @IsOptional() @Type(() => Number) @IsInt() colegioId?: number;
   @IsOptional() @Type(() => Number) @IsInt() turnoId?: number;
+  @IsOptional() @Type(() => Number) @IsInt() clienteId?: number;
   @IsOptional() @IsIn(['PAGADA', 'ANULADA']) estadoPago?: string;
   @IsOptional() @IsIn(['PENDIENTE', 'PARCIAL', 'COMPLETA']) estadoEntrega?: string;
   /** Ventas pagadas con libros por entregar (CU-10). El cajero ve las de su colegio. */

@@ -10,7 +10,7 @@ import { UsuarioActual } from '../../common/decorators';
 import { Rol } from '../../common/roles';
 import { BusinessError } from '../../common/errors';
 import { paginate } from '../../common/dto/pagination.dto';
-import { money } from '../../common/utils/money';
+import { calcularRecargo, money } from '../../common/utils/money';
 import { cicloActual } from '../../common/utils/alcance';
 import { coincide, patron } from '../../common/utils/busqueda';
 import { BitacoraService } from '../bitacora/bitacora.service';
@@ -71,6 +71,14 @@ export interface Cotizacion {
   aPagar: string;
   pagos: ResultadoPagos | null;
   metodos: MetodoVigente[];
+  /** Cuánto pagaría el cliente si paga TODO con cada método (para informarle el recargo). */
+  totalSegunMetodo: {
+    metodoPagoId: number;
+    nombre: string;
+    recargoPct: string;
+    recargo: string;
+    total: string;
+  }[];
   errores: ErrorRegla[];
 }
 
@@ -493,6 +501,7 @@ export class VentasService {
       where.push(pendientes ? `v.colegio_id = ${p(u.colegioId)}` : `v.usuario_id = ${p(u.id)}`);
     else if (f.colegioId) where.push(`v.colegio_id = ${p(f.colegioId)}`);
     if (f.turnoId) where.push(`v.turno_id = ${p(f.turnoId)}`);
+    if (f.clienteId) where.push(`v.cliente_id = ${p(f.clienteId)}`);
     if (f.estadoPago) where.push(`v.estado_pago = ${p(f.estadoPago)}`);
     if (f.estadoEntrega) where.push(`v.estado_entrega = ${p(f.estadoEntrega)}`);
     if (f.desde)
@@ -897,6 +906,16 @@ export class VentasService {
       ? calcularPagos(dto.pagos, new Map(metodos.map((x) => [x.id, x])), aPagar)
       : null;
     if (pagos) errores.push(...pagos.errores);
+    const totalSegunMetodo = metodos.map((x) => {
+      const recargo = calcularRecargo(aPagar, x.recargoPct);
+      return {
+        metodoPagoId: x.id,
+        nombre: x.nombre,
+        recargoPct: money(x.recargoPct).toFixed(2),
+        recargo: recargo.toFixed(2),
+        total: aPagar.plus(recargo).toFixed(2),
+      };
+    });
 
     return {
       colegioId,
@@ -910,6 +929,7 @@ export class VentasService {
       aPagar: aPagar.toFixed(2),
       pagos,
       metodos,
+      totalSegunMetodo,
       errores,
     };
   }
