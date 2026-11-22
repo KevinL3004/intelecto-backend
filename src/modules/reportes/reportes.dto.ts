@@ -29,3 +29,8 @@ export const TIPOS = [
   'bitacora',
 ] as const;
 export type TipoReporte = (typeof TIPOS)[number];
+
+export class FiltroAnalisisDto {
+  @IsOptional() @Type(() => Number) @IsIn([7, 14, 30, 60, 90]) dias: number = 30;
+  @IsOptional() @Type(() => Number) @IsInt() colegioId?: number;
+}

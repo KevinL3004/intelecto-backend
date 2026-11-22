@@ -14,7 +14,8 @@ import { CurrentUser, Roles, UsuarioActual } from '../../common/decorators';
 import { Rol } from '../../common/roles';
 import { FiltroColegioDto } from '../traslados/dto/traslado.dto';
 import { ReportesService } from './reportes.service';
-import { FiltroReporteDto, TIPOS, TipoReporte } from './reportes.dto';
+import { AnalisisService } from './analisis.service';
+import { FiltroAnalisisDto, FiltroReporteDto, TIPOS, TipoReporte } from './reportes.dto';
 import { reporteAExcel } from './excel';
 
 /** Reportes que también puede ver el cajero (sus ventas y los pendientes de su colegio). */
@@ -24,7 +25,24 @@ const PARA_CAJERO: TipoReporte[] = ['ventas', 'pendientes'];
 @ApiBearerAuth()
 @Controller('reportes')
 export class ReportesController {
-  constructor(private readonly service: ReportesService) {}
+  constructor(
+    private readonly service: ReportesService,
+    private readonly analisisSrv: AnalisisService,
+  ) {}
+
+  /** Análisis para decisiones: indicadores, pronóstico, desgloses, alertas y abastecimiento. */
+  @Roles(Rol.ADMIN, Rol.CONTADOR)
+  @Get('analisis')
+  analisis(@Query() f: FiltroAnalisisDto) {
+    return this.analisisSrv.analisis(f.dias, f.colegioId);
+  }
+
+  /** Cobertura por colegio y libro, con sugerencias de traslado o pedido a proveedor. */
+  @Roles(Rol.ADMIN, Rol.CONTADOR)
+  @Get('abastecimiento')
+  abastecimiento(@Query() f: FiltroColegioDto) {
+    return this.analisisSrv.abastecimiento(f.colegioId);
+  }
 
   /** R-13: tablero del día. */
   @Roles(Rol.ADMIN, Rol.CONTADOR)

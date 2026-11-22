@@ -26,6 +26,17 @@ docker exec -i intelecto_postgres psql -U intelecto -d intelecto < db/sql/demo/0
 ```
 Se puede ejecutar varias veces sin duplicar. **Nunca ejecutarlo en producción.**
 
+### Historial de 60 días (para reportes, gráficas y pronósticos)
+Después del anterior y de las migraciones. Agrega un tercer colegio (`cajero.central`), libros
+de 3.º, combos, proveedores, 180 familias con sus hijos y unos 60 días de operación: turnos
+validados (algunos con faltante), ~630 ventas por alumno con licencias, pagos con recargo,
+libros agotados con pendientes, traslados y pedidos recibidos, entregas posteriores y anulaciones.
+El inventario y el kárdex quedan cuadrados con las ventas.
+```bash
+docker exec -i intelecto_postgres psql -U intelecto -d intelecto < db/sql/demo/04_historial.sql
+```
+Se aplica una sola vez (queda marcado en `parametro.demo_historial`). **Nunca en producción.**
+
 ## Neon (producción)
 ```bash
 brew install libpq && brew link --force libpq   # si no tienes psql

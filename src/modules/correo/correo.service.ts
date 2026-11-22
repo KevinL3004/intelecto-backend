@@ -7,6 +7,15 @@ import { consultarVenta, datosEmpresa } from '../ventas/consulta-venta';
 import { plantillaComprobante } from './plantilla-comprobante';
 import { filas } from '../../common/utils/filas';
 
+export type TipoCorreo = 'COMPROBANTE' | 'ENTREGA_COMPLETA';
+interface Pendiente {
+  id: number;
+  ventaId: number;
+  destinatario: string;
+  intentos: number;
+  tipo: TipoCorreo;
+}
+
 /** Espera antes de cada reintento (minutos): 1, 5, 15, 60, 180. Al 6.º fallo queda FALLIDO. */
 const ESPERAS_MIN = [1, 5, 15, 60, 180];
 const MAX_INTENTOS = ESPERAS_MIN.length + 1;
@@ -75,12 +84,13 @@ export class CorreoService implements OnModuleInit, OnModuleDestroy {
     ventaId: number,
     destinatario: string,
     usuarioId: number | null,
+    tipo: TipoCorreo = 'COMPROBANTE',
   ) {
     if (!this.habilitado) return false;
     await m.query(
       `INSERT INTO correo_saliente (venta_id, tipo, destinatario, creado_por)
-       VALUES ($1, 'COMPROBANTE', $2, $3)`,
-      [ventaId, destinatario.trim().toLowerCase(), usuarioId],
+       VALUES ($1, $4, $2, $3)`,
+      [ventaId, destinatario.trim().toLowerCase(), usuarioId, tipo],
     );
     // Intenta enviar pronto, sin esperar al siguiente ciclo.
     setTimeout(() => void this.procesar(), 500).unref();
@@ -93,13 +103,13 @@ export class CorreoService implements OnModuleInit, OnModuleDestroy {
     this.ocupado = true;
     try {
       // "Reserva" el lote: si el proceso muere a mitad, se reintentan tras 10 min.
-      const lote = filas<{ id: number; ventaId: number; destinatario: string; intentos: number }>(
+      const lote = filas<Pendiente>(
         await this.ds.query(
           `UPDATE correo_saliente SET intentos = intentos + 1, proximo_intento = now() + interval '10 minutes'
             WHERE id IN (SELECT id FROM correo_saliente
                           WHERE estado = 'PENDIENTE' AND proximo_intento <= now()
                           ORDER BY id LIMIT ${LOTE} FOR UPDATE SKIP LOCKED)
-            RETURNING id, venta_id AS "ventaId", destinatario, intentos`,
+            RETURNING id, venta_id AS "ventaId", destinatario, intentos, tipo`,
         ),
       );
       for (const c of lote) await this.enviarUno(c);
@@ -110,17 +120,12 @@ export class CorreoService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async enviarUno(c: {
-    id: number;
-    ventaId: number;
-    destinatario: string;
-    intentos: number;
-  }) {
+  private async enviarUno(c: Pendiente) {
     try {
       const venta = await consultarVenta(this.ds, c.ventaId);
       if (!venta) throw Object.assign(new Error('La venta ya no existe'), { permanente: true });
       const empresa = await datosEmpresa(this.ds);
-      const { asunto, html, texto } = plantillaComprobante(venta, empresa);
+      const { asunto, html, texto } = plantillaComprobante(venta, empresa, c.tipo);
       const responder = this.config.get<string>('CORREO_RESPONDER_A');
       await this.transporte!.sendMail({
         from: this.config.get<string>('CORREO_REMITENTE'),

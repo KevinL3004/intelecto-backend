@@ -55,8 +55,43 @@ export function bloquesPorAlumno(v: VentaCompleta): BloqueAlumno[] {
 }
 
 /** Comprobante por correo: HTML sencillo (tablas, estilos en línea) + versión de texto. */
-export function plantillaComprobante(v: VentaCompleta, e: DatosEmpresa) {
-  const asunto = `Comprobante ${v.codigo} · ${e.nombre}`;
+const fechaCorta = (d: Date | string) =>
+  new Intl.DateTimeFormat('es-GT', {
+    timeZone: 'America/Guatemala',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(d));
+
+/** Estado de entrega de la orden: "ENTREGADO" o "PENDIENTE DE ENTREGA" (con cuántos libros faltan). */
+export function estadoDeEntrega(v: VentaCompleta) {
+  if (v.estadoPago === 'ANULADA') return { completo: false, texto: 'VENTA ANULADA' };
+  if (v.estadoEntrega === 'COMPLETA')
+    return {
+      completo: true,
+      texto: `ENTREGADO${v.entregaCompletaEn ? ` el ${fechaCorta(v.entregaCompletaEn)}` : ''}`,
+    };
+  const faltan = v.lineas
+    .filter((l) => l.estado !== 'ANULADO')
+    .reduce((a, l) => a + (l.cantidad - l.cantidadEntregada), 0);
+  return { completo: false, texto: `PENDIENTE DE ENTREGA: ${faltan} libro(s)` };
+}
+
+export function plantillaComprobante(
+  v: VentaCompleta,
+  e: DatosEmpresa,
+  tipo: 'COMPROBANTE' | 'ENTREGA_COMPLETA' = 'COMPROBANTE',
+) {
+  const asunto =
+    tipo === 'ENTREGA_COMPLETA'
+      ? `Entrega completa ${v.codigo} · ${e.nombre}`
+      : `Comprobante ${v.codigo} · ${e.nombre}`;
+  const estado = estadoDeEntrega(v);
+  const colorEstado = estado.completo
+    ? '#047857'
+    : v.estadoPago === 'ANULADA'
+      ? '#e11d48'
+      : '#b45309';
   const bloques = bloquesPorAlumno(v);
   const fila = (izq: string, der: string, estilo = '') =>
     `<tr><td style="padding:2px 0;${estilo}">${izq}</td><td style="padding:2px 0;text-align:right;${estilo}">${der}</td></tr>`;
@@ -67,6 +102,12 @@ export function plantillaComprobante(v: VentaCompleta, e: DatosEmpresa) {
         .map((l) =>
           fila(
             `${l.cantidad} × ${esc(l.titulo)}${
+              l.estado === 'ENTREGADO' &&
+              l.entregadoEn &&
+              fechaCorta(l.entregadoEn) !== fechaCorta(v.fecha)
+                ? `<br><span style="color:#047857;font-size:12px">Entregado el ${esc(fechaCorta(l.entregadoEn))}</span>`
+                : ''
+            }${
               ESTADO[l.estado]
                 ? `<br><span style="color:#b45309;font-size:12px">${esc(ESTADO[l.estado])}${
                     l.colegioOrigen ? ` (${esc(l.colegioOrigen)})` : ''
@@ -125,11 +166,7 @@ export function plantillaComprobante(v: VentaCompleta, e: DatosEmpresa) {
     <p style="margin:0;font-size:20px;font-weight:700;text-align:center">${esc(e.nombre)}</p>
     ${emisor ? `<p style="margin:4px 0 0;font-size:12px;color:#52525b;text-align:center">${emisor}</p>` : ''}
     <p style="margin:12px 0 0;text-align:center;color:#52525b">Comprobante de compra · ${esc(v.colegio)}</p>
-    ${
-      v.estadoPago === 'ANULADA'
-        ? `<p style="margin:12px 0;padding:8px;border:1px solid #e11d48;color:#e11d48;text-align:center;border-radius:6px">VENTA ANULADA</p>`
-        : ''
-    }
+    <p style="margin:12px 0;padding:8px;border:1px solid ${colorEstado};color:${colorEstado};text-align:center;border-radius:6px;font-weight:700">${esc(estado.texto)}</p>
     <table role="presentation" width="100%" style="border-collapse:collapse;margin-top:12px;font-size:14px">
       ${fila('Venta', `<strong>${esc(v.codigo)}</strong>`)}
       ${fila('Fecha', esc(fechaGt(v.fecha)))}
@@ -164,7 +201,7 @@ export function plantillaComprobante(v: VentaCompleta, e: DatosEmpresa) {
     `${e.nombre} — Comprobante ${v.codigo}`,
     `Fecha: ${fechaGt(v.fecha)} · ${v.colegio}`,
     `Cliente: ${v.cliente} · NIT ${v.nit}`,
-    v.estadoPago === 'ANULADA' ? 'VENTA ANULADA' : '',
+    `Estado: ${estado.texto}`,
     '',
     ...bloques.flatMap((b) => [
       `Alumno: ${b.titulo}${b.grado ? ` (${b.grado})` : ''}`,

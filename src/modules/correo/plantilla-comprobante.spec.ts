@@ -1,4 +1,9 @@
-import { bloquesPorAlumno, esc, plantillaComprobante } from './plantilla-comprobante';
+import {
+  bloquesPorAlumno,
+  esc,
+  estadoDeEntrega,
+  plantillaComprobante,
+} from './plantilla-comprobante';
 import type { DatosEmpresa, VentaCompleta } from '../ventas/consulta-venta';
 
 const empresa: DatosEmpresa = {
@@ -22,6 +27,7 @@ const linea = (id: number, ventaAlumnoId: number | null, titulo: string, estado 
   subtotal: '100.00',
   estado,
   colegioOrigen: null,
+  entregadoEn: null,
 });
 const venta = (extra: Partial<VentaCompleta> = {}): VentaCompleta => ({
   id: 1,
@@ -40,6 +46,8 @@ const venta = (extra: Partial<VentaCompleta> = {}): VentaCompleta => ({
   recargo: '0.00',
   total: '300.00',
   estadoPago: 'PAGADA',
+  estadoEntrega: 'PARCIAL',
+  entregaCompletaEn: null,
   fecha: new Date('2027-01-15T15:00:00Z'),
   usuarioId: 1,
   usuario: 'cajero',
@@ -111,5 +119,19 @@ describe('plantilla de comprobante', () => {
     expect(asunto).toBe('Comprobante V-2027-000001 · Intelecto');
     expect(texto).toContain('Licencia digital: LIC-001 — aula.ejemplo.com');
     expect(html).toContain('pendientes de entrega');
+    expect(texto).toContain('Estado: PENDIENTE DE ENTREGA: 1 libro(s)');
+  });
+
+  it('estado de entrega', () => {
+    expect(estadoDeEntrega(venta()).texto).toBe('PENDIENTE DE ENTREGA: 1 libro(s)');
+    const completa = venta({
+      estadoEntrega: 'COMPLETA',
+      entregaCompletaEn: new Date('2027-01-20T16:00:00Z'),
+    });
+    expect(estadoDeEntrega(completa)).toEqual({ completo: true, texto: 'ENTREGADO el 20/01/2027' });
+    expect(plantillaComprobante(completa, empresa, 'ENTREGA_COMPLETA').asunto).toBe(
+      'Entrega completa V-2027-000001 · Intelecto',
+    );
+    expect(estadoDeEntrega(venta({ estadoPago: 'ANULADA' })).texto).toBe('VENTA ANULADA');
   });
 });

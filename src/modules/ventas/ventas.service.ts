@@ -597,6 +597,15 @@ export class VentasService {
         { usuarioId: u.id, accion: 'ENTREGA', entidad: 'venta', entidadId: id, despues: dto, ip },
         m,
       );
+      // Orden completa: el padre recibe el comprobante actualizado ("Entrega completa").
+      const [c] = await m.query(
+        `SELECT v.estado_entrega AS estado, p.correo,
+                (p.nit = 'CF' AND f_norm(p.nombres || ' ' || p.apellidos) = 'consumidor final') AS generico
+           FROM venta v JOIN persona p ON p.id = v.cliente_id WHERE v.id = $1`,
+        [id],
+      );
+      if (c?.estado === 'COMPLETA' && c.correo && !c.generico)
+        await this.correo.encolarComprobante(m, id, c.correo, u.id, 'ENTREGA_COMPLETA');
     });
     return this.obtener(id, u);
   }

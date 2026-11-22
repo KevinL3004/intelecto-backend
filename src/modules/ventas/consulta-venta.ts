@@ -27,6 +27,13 @@ export async function consultarVenta(m: Consultor, id: number) {
     [id],
   );
   if (!v) return null;
+  // Fecha en que se completó la entrega (última entrega), si ya está completa.
+  const [ent] = await m.query(
+    `SELECT max(e.fecha) AS fecha FROM entrega e JOIN venta_detalle d ON d.id = e.venta_detalle_id
+      WHERE d.venta_id = $1`,
+    [id],
+  );
+  v.entregaCompletaEn = v.estadoEntrega === 'COMPLETA' ? (ent?.fecha ?? v.fecha) : null;
   const alumnos: AlumnoDeVenta[] = await m.query(
     `SELECT va.id, va.alumno_id AS "alumnoId", trim(a.nombres || ' ' || a.apellidos) AS nombre,
             va.grado_id AS "gradoId", g.nombre AS grado, va.licencia, va.descuento::text AS descuento,
@@ -40,7 +47,8 @@ export async function consultarVenta(m: Consultor, id: number) {
     `SELECT d.id, d.venta_alumno_id AS "ventaAlumnoId", d.libro_id AS "libroId", l.titulo, l.isbn,
             d.cantidad, d.cantidad_entregada AS "cantidadEntregada",
             d.precio_unitario AS "precioUnitario", d.subtotal, d.estado,
-            d.colegio_origen_id AS "colegioOrigenId", co.nombre AS "colegioOrigen"
+            d.colegio_origen_id AS "colegioOrigenId", co.nombre AS "colegioOrigen",
+            (SELECT max(e.fecha) FROM entrega e WHERE e.venta_detalle_id = d.id) AS "entregadoEn"
        FROM venta_detalle d JOIN libro l ON l.id = d.libro_id
        LEFT JOIN colegio co ON co.id = d.colegio_origen_id
       WHERE d.venta_id = $1 ORDER BY l.titulo, d.id`,
@@ -85,6 +93,7 @@ export interface LineaDeVenta {
   subtotal: string;
   estado: string;
   colegioOrigen: string | null;
+  entregadoEn: Date | null;
 }
 
 export interface VentaCompleta {
@@ -104,6 +113,8 @@ export interface VentaCompleta {
   recargo: string;
   total: string;
   estadoPago: string;
+  estadoEntrega: 'PENDIENTE' | 'PARCIAL' | 'COMPLETA';
+  entregaCompletaEn: Date | null;
   fecha: Date;
   usuarioId: number | null;
   usuario: string | null;
