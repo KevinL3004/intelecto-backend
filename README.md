@@ -43,9 +43,10 @@ docker compose logs -f api
 Ver [SECURITY.md](SECURITY.md): controles implementados, cómo reportar vulnerabilidades y lista de
 verificación para producción.
 
-## Render
-Web Service → Docker → rama `main`. Health check: `/api/v1/health`.
-Variables: `DATABASE_URL` (Neon), `DATABASE_SSL=true`, `JWT_SECRET` (`openssl rand -hex 32`), `CORS_ORIGIN` (URL https de Cloudflare Pages), `NODE_ENV=production`, `FEATURE_*=false`. La API **no arranca** si falta algo o hay valores de ejemplo.
+## Despliegue (Neon + Render + Cloudflare)
+Guía paso a paso con verificación final: **[DESPLIEGUE.md](DESPLIEGUE.md)**. Render se configura con
+[`render.yaml`](render.yaml) y aplica las migraciones solo en cada despliegue (`npm run db:migrar`).
+La API **no arranca** si falta una variable o hay valores de ejemplo.
 
 ## Correo de comprobantes
 Al cobrar, si el cliente tiene correo, el comprobante (agrupado por alumno, con su licencia) se

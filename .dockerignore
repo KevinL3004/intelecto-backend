@@ -6,5 +6,8 @@ dist
 coverage
 .git
 .github
-db
+# Solo entran a la imagen el esquema, la semilla y las migraciones (nunca los datos demo).
+db/*
+!db/sql
+db/sql/demo
 *.md

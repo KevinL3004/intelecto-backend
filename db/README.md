@@ -38,17 +38,19 @@ docker exec -i intelecto_postgres psql -U intelecto -d intelecto < db/sql/demo/0
 Se aplica una sola vez (queda marcado en `parametro.demo_historial`). **Nunca en producción.**
 
 ## Neon (producción)
+Render aplica el esquema y las migraciones en cada despliegue (ver [DESPLIEGUE.md](../DESPLIEGUE.md)).
+A mano, desde su computadora:
 ```bash
-brew install libpq && brew link --force libpq   # si no tienes psql
-export DATABASE_URL="postgresql://USUARIO:CLAVE@HOST.neon.tech/intelecto?sslmode=require"
-psql "$DATABASE_URL" -f db/sql/01_schema.sql
-psql "$DATABASE_URL" -f db/sql/02_seed.sql
-for f in db/sql/migrations/V*.sql; do psql "$DATABASE_URL" -f "$f"; done
-DATABASE_SSL=true npm run usuario:password -- admin     # contraseña del primer admin
+DATABASE_URL='<neon>' DATABASE_SSL=true npm run db:migrar -- --ver   # qué falta
+DATABASE_URL='<neon>' DATABASE_SSL=true npm run db:migrar            # aplicarlo
+DATABASE_SSL=true npm run usuario:password -- admin                    # contraseña del primer admin
 ```
+`db:migrar` lleva registro (`migracion_aplicada`), aplica cada archivo en una transacción, se
+detiene si una migración aplicada fue modificada y **nunca** aplica `demo/`. En una base creada a
+mano antes de existir el script: `npm run db:migrar -- --registrar-existentes` (una sola vez).
 
 ## Migraciones
-Nunca editar `01_schema.sql` después de producción. Cada cambio nuevo va en `db/sql/migrations/V00N__descripcion.sql` (siguiente número libre). En un volumen nuevo de Docker se aplican solas; en una BD existente (local o Neon) se aplican a mano:
+Nunca editar `01_schema.sql` ni una migración ya aplicada. Cada cambio nuevo va en `db/sql/migrations/V00N__descripcion.sql` (siguiente número libre). En un volumen nuevo de Docker se aplican solas; en Neon, en cada despliegue de Render; en su base local existente, con `npm run db:migrar` o a mano:
 ```bash
 docker exec -i intelecto_postgres psql -U intelecto -d intelecto < db/sql/migrations/V005__alumnos_licencias_correo.sql
 ```

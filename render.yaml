@@ -1,0 +1,44 @@
+# Blueprint de Render: Dashboard → New → Blueprint → este repositorio.
+# Las variables con "sync: false" se piden al crear el servicio (son secretas o dependen de
+# otros servicios) y nunca se guardan en el repositorio.
+services:
+  - type: web
+    name: intelecto-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    branch: main
+    # Misma región que la base de Neon (AWS us-east-2, Ohio): menos latencia por consulta.
+    region: ohio
+    # "starter" no se duerme. En "free" el servicio se apaga tras 15 min sin uso: la primera venta
+    # tardaría ~1 min y los correos pendientes no salen mientras duerme. No apto para caja.
+    plan: starter
+    healthCheckPath: /api/v1/health
+    # Antes de publicar cada versión aplica las migraciones pendientes (con registro y bloqueo).
+    # Si una falla, Render NO publica la versión nueva y la anterior sigue atendiendo.
+    preDeployCommand: node scripts/migrar.js
+    # Solo despliega si pasan las pruebas de GitHub Actions (lint, pruebas, auditoría).
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false # Neon → Connection string (con ?sslmode=require)
+      - key: DATABASE_SSL
+        value: "true"
+      - key: JWT_SECRET
+        generateValue: true # Render genera un secreto aleatorio
+      - key: JWT_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+      - key: CORS_ORIGIN
+        sync: false # URL https del frontend en Cloudflare, p. ej. https://intelecto-frontend.pages.dev
+      # Correo de comprobantes: dejar en false hasta tener proveedor SMTP y DNS (SPF/DKIM/DMARC).
+      - key: CORREO_HABILITADO
+        value: "false"
+      - key: FEATURE_PORTAL_CLIENTES
+        value: "false"
+      - key: FEATURE_PAGOS_LINEA
+        value: "false"
+      - key: FEATURE_FEL
+        value: "false"

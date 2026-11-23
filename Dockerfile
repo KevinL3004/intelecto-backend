@@ -17,6 +17,8 @@ COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --chown=node:node package.json ./
 COPY --chown=node:node scripts ./scripts
+# Esquema y migraciones para `node scripts/migrar.js` (pre-deploy de Render). Sin datos demo.
+COPY --chown=node:node db/sql ./db/sql
 # Sin privilegios de root.
 USER node
 EXPOSE 3000
