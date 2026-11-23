@@ -1,7 +1,7 @@
 # Node 24 LTS (soporte hasta abril 2028). Versión exacta para builds reproducibles;
 # Dependabot propone las actualizaciones de seguridad.
 # ---------- build ----------
-FROM node:24.22.3-alpine AS build
+FROM node:26.13.1-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 # --ignore-scripts: ningún paquete ejecuta código al instalarse (defensa de cadena de suministro).
@@ -10,7 +10,7 @@ COPY . .
 RUN npm run build && npm prune --omit=dev --ignore-scripts
 
 # ---------- runtime ----------
-FROM node:24.22.3-alpine
+FROM node:26.13.1-alpine
 ENV NODE_ENV=production TZ=UTC
 WORKDIR /app
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
