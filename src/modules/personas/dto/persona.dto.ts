@@ -50,4 +50,4 @@ export class CrearPersonaDto {
   correo?: string | null;
 }
 
-export class EditarPersonaDto extends PartialType(CrearPersonaDto) {}
+export class EditarPersonaDto extends PartialType(CrearPersonaDto, { skipNullProperties: false }) {}

@@ -1,3 +1,4 @@
+import { Opcional } from '../../../common/validation/entrada';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
@@ -22,6 +23,6 @@ export class CrearLibroDto {
   editorial?: string | null;
 }
 
-export class EditarLibroDto extends PartialType(CrearLibroDto) {
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() activo?: boolean;
+export class EditarLibroDto extends PartialType(CrearLibroDto, { skipNullProperties: false }) {
+  @ApiPropertyOptional() @Opcional() @IsBoolean() activo?: boolean;
 }

@@ -1,3 +1,4 @@
+import { Opcional } from '../../../common/validation/entrada';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
@@ -12,6 +13,6 @@ export class CrearColegioDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(20) telefono?: string;
 }
 
-export class EditarColegioDto extends PartialType(CrearColegioDto) {
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() activo?: boolean;
+export class EditarColegioDto extends PartialType(CrearColegioDto, { skipNullProperties: false }) {
+  @ApiPropertyOptional() @Opcional() @IsBoolean() activo?: boolean;
 }

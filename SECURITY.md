@@ -34,6 +34,20 @@ en este repositorio. Se responde en un máximo de 5 días hábiles.
 - Todo SQL usa parámetros (`$1…`); búsquedas escapan `%` y `_`.
 - Montos con `decimal.js` y `NUMERIC(12,2)`; reglas de dinero con pruebas unitarias.
 - Peticiones limitadas a 200 KB.
+- **Barrera de entrada global** (`src/common/validation/entrada-segura.ts`), antes de cualquier
+  validador: rechaza caracteres de control y bytes nulos (en ruta, parámetros y cuerpo), números
+  no representables, cuerpos con más de 8 niveles de anidamiento (agotaban la pila), claves
+  `__proto__`/`constructor`/`prototype` y cuerpos que no son JSON (415).
+- **Ids**: `@EsId()` (entero 1 … 2^53−1) en todos los DTO y `@ParamId()` en las rutas, que lee el
+  texto crudo (rechaza `+2`, `0x10`, `1e3`, `-1`, `01`, desbordes de BIGINT).
+- Ediciones (`PATCH`): `null` se valida y se rechaza en campos obligatorios (`skipNullProperties:
+  false`, `@Opcional()`); los arreglos de objetos exigen objetos en cada elemento.
+- Errores de datos que llegan a la base (formato, rango, NOT NULL) responden 400 genérico, sin
+  detalles internos; el detalle queda en el log.
+- **Pruebas de ataque**: fuzzer de 103 endpoints × ~45 cargas (inyección SQL clásica, por tiempo y
+  UNION; tipos, desbordes, bytes nulos, prototipos, anidamiento) y pruebas de concurrencia
+  (ventas por la última unidad, anulación/entrega/recepción dobles). Se repiten antes de cada
+  publicación.
 - Respuestas con `Cache-Control: no-store` (datos personales y financieros).
 
 ### Transporte y cabeceras (ASVS V9, V14)

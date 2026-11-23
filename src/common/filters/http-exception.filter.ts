@@ -6,7 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { QueryFailedError } from 'typeorm';
+import { QueryFailedError, UpdateValuesMissingError } from 'typeorm';
 
 type HttpBody = string | { error?: string; message?: string | string[] };
 
@@ -48,9 +48,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
         status = HttpStatus.UNPROCESSABLE_ENTITY;
         error = 'REGLA_BD';
         message = 'Los datos no cumplen una regla del sistema';
+      } else if (code === '23502' || code?.startsWith('22')) {
+        // 23502: falta un dato obligatorio; 22xxx: dato con formato o rango inválido para la
+        // columna. Son errores del cliente: 400 sin revelar detalles de la base (sí al log).
+        this.logger.warn(`Dato rechazado por la base (${code}): ${exception.message}`);
+        status = HttpStatus.BAD_REQUEST;
+        error = 'VALIDACION';
+        message = 'Algún dato no tiene un formato o valor válido';
       } else {
         this.logger.error(exception.message);
       }
+    } else if (exception instanceof UpdateValuesMissingError) {
+      status = HttpStatus.BAD_REQUEST;
+      error = 'VALIDACION';
+      message = 'No se indicó ningún cambio';
     } else {
       this.logger.error(exception instanceof Error ? exception.stack : String(exception));
     }

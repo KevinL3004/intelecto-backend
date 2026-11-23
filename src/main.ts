@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import type { NextFunction, Request, Response } from 'express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
+import { entradaSegura } from './common/validation/entrada';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
@@ -37,6 +38,8 @@ async function bootstrap() {
   // Límite de tamaño de las peticiones (evita agotar memoria con cuerpos enormes).
   app.useBodyParser('json', { limit: '200kb' });
   app.useBodyParser('urlencoded', { limit: '50kb', extended: false });
+  // Primera barrera de validación (bytes de control, números irrepresentables, anidamiento, prototipos).
+  app.use(entradaSegura);
 
   app.enableCors({
     origin: (process.env.CORS_ORIGIN ?? '').split(',').map((o) => o.trim()),

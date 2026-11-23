@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import { ParamId } from '../../common/validation/entrada';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ClientIp, CurrentUser, Roles, UsuarioActual } from '../../common/decorators';
 import { Rol } from '../../common/roles';
@@ -29,7 +30,7 @@ export class TrasladosController {
   }
 
   @Get('traslados/:id')
-  obtener(@Param('id', ParseIntPipe) id: number) {
+  obtener(@ParamId('id') id: number) {
     return this.service.obtener(id);
   }
 
@@ -39,17 +40,13 @@ export class TrasladosController {
   }
 
   @Post('traslados/:id/despachar')
-  despachar(
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() u: UsuarioActual,
-    @ClientIp() ip: string,
-  ) {
+  despachar(@ParamId('id') id: number, @CurrentUser() u: UsuarioActual, @ClientIp() ip: string) {
     return this.service.despachar(id, u.id, ip);
   }
 
   @Post('traslados/:id/recibir')
   recibir(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @Body() dto: RecibirTrasladoDto,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,
@@ -58,11 +55,7 @@ export class TrasladosController {
   }
 
   @Post('traslados/:id/cancelar')
-  cancelar(
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() u: UsuarioActual,
-    @ClientIp() ip: string,
-  ) {
+  cancelar(@ParamId('id') id: number, @CurrentUser() u: UsuarioActual, @ClientIp() ip: string) {
     return this.service.cancelar(id, u.id, ip);
   }
 }

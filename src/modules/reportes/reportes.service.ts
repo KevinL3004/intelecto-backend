@@ -167,7 +167,7 @@ export class ReportesService {
         else if (f.usuarioId) q.add(`v.usuario_id = ${q.p(f.usuarioId)}`);
         if (f.colegioId) q.add(`v.colegio_id = ${q.p(f.colegioId)}`);
         if (f.cajaId) q.add(`t.caja_id = ${q.p(f.cajaId)}`);
-        if (f.estado) q.add(`v.estado_pago = ${q.p(f.estado)}`);
+        if (f.estado) q.add(`v.estado_pago::text = ${q.p(f.estado)}`);
         if (f.metodoPagoId)
           q.add(
             `EXISTS (SELECT 1 FROM venta_pago p WHERE p.venta_id = v.id AND p.metodo_pago_id = ${q.p(f.metodoPagoId)})`,
@@ -270,7 +270,7 @@ export class ReportesService {
         );
         if (u.rol === Rol.CAJERO) q.add(`v.colegio_id = ${q.p(u.colegioId)}`);
         else if (f.colegioId) q.add(`v.colegio_id = ${q.p(f.colegioId)}`);
-        if (f.estado) q.add(`d.estado = ${q.p(f.estado)}`);
+        if (f.estado) q.add(`d.estado::text = ${q.p(f.estado)}`);
         q.rango('v.fecha', f.desde, f.hasta);
         return {
           sql: `SELECT v.codigo, v.fecha, ((now() AT TIME ZONE ${TZ})::date - (v.fecha AT TIME ZONE ${TZ})::date) AS dias, co.nombre AS colegio,
@@ -310,7 +310,7 @@ export class ReportesService {
         const q = new Filtros();
         q.rango('v.fecha', f.desde, f.hasta);
         if (f.colegioId) q.add(`v.colegio_id = ${q.p(f.colegioId)}`);
-        if (f.estado) q.add(`v.estado_pago = ${q.p(f.estado)}`);
+        if (f.estado) q.add(`v.estado_pago::text = ${q.p(f.estado)}`);
         return {
           sql: `SELECT v.codigo, v.fecha, co.nombre AS colegio, g.nombre AS grado,
                        trim(a.nombres || ' ' || a.apellidos) AS alumno,
@@ -359,7 +359,7 @@ export class ReportesService {
         if (f.colegioId) q.add(`c.colegio_id = ${q.p(f.colegioId)}`);
         if (f.cajaId) q.add(`t.caja_id = ${q.p(f.cajaId)}`);
         if (f.usuarioId) q.add(`t.usuario_id = ${q.p(f.usuarioId)}`);
-        if (f.estado) q.add(`t.estado = ${q.p(f.estado)}`);
+        if (f.estado) q.add(`t.estado::text = ${q.p(f.estado)}`);
         return {
           sql: `SELECT t.id AS turno, t.abierto_en AS "abiertoEn", t.cerrado_en AS "cerradoEn", co.nombre AS colegio,
                        c.numero AS caja, u.username AS cajero, t.fondo_inicial::text AS fondo,

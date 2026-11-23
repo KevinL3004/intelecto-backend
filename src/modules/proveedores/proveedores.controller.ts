@@ -1,14 +1,5 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseIntPipe,
-  Patch,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { ParamId } from '../../common/validation/entrada';
+import { Body, Controller, Delete, Get, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ClientIp, CurrentUser, Roles, UsuarioActual } from '../../common/decorators';
 import { Rol } from '../../common/roles';
@@ -43,7 +34,7 @@ export class ProveedoresController {
 
   @Patch('proveedores/:id')
   editar(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @Body() dto: EditarProveedorDto,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,
@@ -52,11 +43,7 @@ export class ProveedoresController {
   }
 
   @Delete('proveedores/:id')
-  eliminar(
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() u: UsuarioActual,
-    @ClientIp() ip: string,
-  ) {
+  eliminar(@ParamId('id') id: number, @CurrentUser() u: UsuarioActual, @ClientIp() ip: string) {
     return this.service.eliminarProveedor(id, u.id, ip);
   }
 
@@ -71,7 +58,7 @@ export class ProveedoresController {
   }
 
   @Get('pedidos-proveedor/:id')
-  pedido(@Param('id', ParseIntPipe) id: number) {
+  pedido(@ParamId('id') id: number) {
     return this.service.pedido(id);
   }
 
@@ -86,7 +73,7 @@ export class ProveedoresController {
 
   @Post('pedidos-proveedor/:id/recepciones')
   recepcion(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @Body() dto: RecepcionDto,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,
@@ -95,11 +82,7 @@ export class ProveedoresController {
   }
 
   @Post('pedidos-proveedor/:id/cancelar')
-  cancelar(
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() u: UsuarioActual,
-    @ClientIp() ip: string,
-  ) {
+  cancelar(@ParamId('id') id: number, @CurrentUser() u: UsuarioActual, @ClientIp() ip: string) {
     return this.service.cancelarPedido(id, u.id, ip);
   }
 }

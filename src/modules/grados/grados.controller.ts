@@ -1,13 +1,5 @@
-import {
-  Body,
-  Controller,
-  Get,
-  NotFoundException,
-  Param,
-  ParseIntPipe,
-  Patch,
-  Post,
-} from '@nestjs/common';
+import { ParamId } from '../../common/validation/entrada';
+import { Body, Controller, Get, NotFoundException, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -49,7 +41,7 @@ export class GradosController {
   @Roles(Rol.ADMIN)
   @Patch(':id')
   async editar(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @Body() dto: EditarGradoDto,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,

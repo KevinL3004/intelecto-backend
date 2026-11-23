@@ -1,3 +1,4 @@
+import { EsId, Opcional } from '../../../common/validation/entrada';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -16,6 +17,7 @@ import {
   MaxLength,
   Min,
   ValidateNested,
+  IsObject,
 } from 'class-validator';
 import { PaginationDto } from '../../../common/dto/pagination.dto';
 
@@ -49,18 +51,20 @@ export class CrearProveedorDto {
   correo?: string | null;
 }
 
-export class EditarProveedorDto extends PartialType(CrearProveedorDto) {
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() activo?: boolean;
+export class EditarProveedorDto extends PartialType(CrearProveedorDto, {
+  skipNullProperties: false,
+}) {
+  @ApiPropertyOptional() @Opcional() @IsBoolean() activo?: boolean;
 }
 
 export class ItemPedidoDto {
-  @ApiProperty() @IsInt() libroId: number;
+  @ApiProperty() @EsId() libroId: number;
   @ApiProperty() @IsInt() @Min(1) @Max(100000) solicitado: number;
 }
 
 export class CrearPedidoDto {
-  @ApiProperty() @IsInt() proveedorId: number;
-  @ApiProperty() @IsInt() colegioDestinoId: number;
+  @ApiProperty() @EsId() proveedorId: number;
+  @ApiProperty() @EsId() colegioDestinoId: number;
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(trim)
@@ -71,13 +75,14 @@ export class CrearPedidoDto {
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(300)
+  @IsObject({ each: true })
   @ValidateNested({ each: true })
   @Type(() => ItemPedidoDto)
   items: ItemPedidoDto[];
 }
 
 export class ItemRecepcionDto {
-  @ApiProperty() @IsInt() libroId: number;
+  @ApiProperty() @EsId() libroId: number;
   @ApiProperty() @IsInt() @Min(1) @Max(100000) cantidad: number;
 }
 
@@ -86,6 +91,7 @@ export class RecepcionDto {
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(300)
+  @IsObject({ each: true })
   @ValidateNested({ each: true })
   @Type(() => ItemRecepcionDto)
   items: ItemRecepcionDto[];
@@ -99,5 +105,5 @@ export class RecepcionDto {
 
 export class FiltroPedidosDto extends PaginationDto {
   @IsOptional() @IsIn(['SOLICITADO', 'PARCIAL', 'RECIBIDO', 'CANCELADO']) estado?: string;
-  @IsOptional() @Type(() => Number) @IsInt() colegioId?: number;
+  @IsOptional() @Type(() => Number) @EsId() colegioId?: number;
 }

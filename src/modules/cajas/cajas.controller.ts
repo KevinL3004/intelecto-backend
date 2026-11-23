@@ -1,11 +1,10 @@
+import { ParamId } from '../../common/validation/entrada';
 import {
   Body,
   Controller,
   Delete,
   Get,
   NotFoundException,
-  Param,
-  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -59,7 +58,7 @@ export class CajasController {
   @Roles(Rol.ADMIN)
   @Patch(':id')
   async editar(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @Body() dto: EditarCajaDto,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,
@@ -86,7 +85,7 @@ export class CajasController {
   @Roles(Rol.ADMIN)
   @Delete(':id')
   async eliminar(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,
   ) {

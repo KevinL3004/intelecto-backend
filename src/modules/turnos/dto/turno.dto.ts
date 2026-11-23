@@ -1,3 +1,4 @@
+import { EsId } from '../../../common/validation/entrada';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -13,6 +14,7 @@ import {
   MaxLength,
   Min,
   ValidateNested,
+  IsObject,
 } from 'class-validator';
 import { PaginationDto } from '../../../common/dto/pagination.dto';
 
@@ -20,15 +22,16 @@ const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? val
 const MONTO = /^\d{1,10}(\.\d{1,2})?$/;
 
 export class ConteoItemDto {
-  @ApiProperty() @IsInt() denominacionId: number;
+  @ApiProperty() @EsId() denominacionId: number;
   @ApiProperty() @IsInt() @Min(0) @Max(100000) cantidad: number;
 }
 
 export class AbrirTurnoDto {
-  @ApiProperty() @IsInt() cajaId: number;
+  @ApiProperty() @EsId() cajaId: number;
   @ApiProperty({ type: [ConteoItemDto], description: 'Fondo inicial por denominación' })
   @IsArray()
   @ArrayMaxSize(50)
+  @IsObject({ each: true })
   @ValidateNested({ each: true })
   @Type(() => ConteoItemDto)
   conteo: ConteoItemDto[];
@@ -48,6 +51,7 @@ export class CerrarTurnoDto {
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(50)
+  @IsObject({ each: true })
   @ValidateNested({ each: true })
   @Type(() => ConteoItemDto)
   conteo?: ConteoItemDto[];
@@ -90,9 +94,9 @@ export class FiltroTurnosDto extends PaginationDto {
   @IsOptional()
   @IsIn(['ABIERTO', 'EN_CIERRE', 'CERRADO', 'VALIDADO', 'OBSERVADO'])
   estado?: string;
-  @IsOptional() @Type(() => Number) @IsInt() colegioId?: number;
+  @IsOptional() @Type(() => Number) @EsId() colegioId?: number;
 }
 
 export class FiltroCajasDisponiblesDto {
-  @IsOptional() @Type(() => Number) @IsInt() colegioId?: number;
+  @IsOptional() @Type(() => Number) @EsId() colegioId?: number;
 }

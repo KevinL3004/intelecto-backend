@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import { ParamId } from '../../common/validation/entrada';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ClientIp, CurrentUser, Roles, UsuarioActual } from '../../common/decorators';
 import { Rol } from '../../common/roles';
@@ -39,7 +40,7 @@ export class TurnosController {
   }
 
   @Get('turnos/:id/acta')
-  acta(@Param('id', ParseIntPipe) id: number, @CurrentUser() u: UsuarioActual) {
+  acta(@ParamId('id') id: number, @CurrentUser() u: UsuarioActual) {
     return this.service.acta(id, u);
   }
 
@@ -50,7 +51,7 @@ export class TurnosController {
 
   @Post('turnos/:id/iniciar-cierre')
   iniciarCierre(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,
   ) {
@@ -59,7 +60,7 @@ export class TurnosController {
 
   @Post('turnos/:id/cancelar-cierre')
   cancelarCierre(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,
   ) {
@@ -68,7 +69,7 @@ export class TurnosController {
 
   @Post('turnos/:id/cerrar')
   cerrar(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @Body() dto: CerrarTurnoDto,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,
@@ -79,7 +80,7 @@ export class TurnosController {
   @Roles(Rol.ADMIN, Rol.CONTADOR)
   @Post('turnos/:id/validar')
   validar(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @Body() dto: ValidarTurnoDto,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,
@@ -90,7 +91,7 @@ export class TurnosController {
   @Roles(Rol.ADMIN, Rol.CONTADOR)
   @Post('turnos/:id/movimientos')
   movimiento(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @Body() dto: MovimientoCajaDto,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,

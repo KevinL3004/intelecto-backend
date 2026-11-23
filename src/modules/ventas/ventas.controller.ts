@@ -1,14 +1,5 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  Param,
-  ParseIntPipe,
-  Patch,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { ParamId } from '../../common/validation/entrada';
+import { Body, Controller, Get, HttpCode, Patch, Post, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ClientIp, CurrentUser, Roles, UsuarioActual } from '../../common/decorators';
@@ -49,13 +40,13 @@ export class VentasController {
   }
 
   @Get(':id')
-  obtener(@Param('id', ParseIntPipe) id: number, @CurrentUser() u: UsuarioActual) {
+  obtener(@ParamId('id') id: number, @CurrentUser() u: UsuarioActual) {
     return this.service.obtener(id, u);
   }
 
   /** Comprobante para imprimir (ticket térmico 80 mm), agrupado por alumno. */
   @Get(':id/comprobante')
-  comprobante(@Param('id', ParseIntPipe) id: number, @CurrentUser() u: UsuarioActual) {
+  comprobante(@ParamId('id') id: number, @CurrentUser() u: UsuarioActual) {
     return this.service.comprobante(id, u);
   }
 
@@ -64,7 +55,7 @@ export class VentasController {
   @Post(':id/comprobante/correo')
   @HttpCode(202)
   enviarComprobante(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @Body() dto: EnviarComprobanteDto,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,
@@ -75,8 +66,8 @@ export class VentasController {
   /** Corrige la licencia digital de un alumno de la venta. */
   @Patch(':id/alumnos/:ventaAlumnoId/licencia')
   editarLicencia(
-    @Param('id', ParseIntPipe) id: number,
-    @Param('ventaAlumnoId', ParseIntPipe) ventaAlumnoId: number,
+    @ParamId('id') id: number,
+    @ParamId('ventaAlumnoId') ventaAlumnoId: number,
     @Body() dto: LicenciaDto,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,
@@ -86,7 +77,7 @@ export class VentasController {
 
   @Post(':id/entregas')
   entregar(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @Body() dto: EntregarDto,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,
@@ -97,7 +88,7 @@ export class VentasController {
   @Roles(Rol.ADMIN, Rol.CONTADOR)
   @Post(':id/anular')
   anular(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @Body() dto: AnularVentaDto,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,

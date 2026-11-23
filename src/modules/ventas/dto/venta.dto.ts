@@ -1,3 +1,4 @@
+import { EsId } from '../../../common/validation/entrada';
 import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -17,6 +18,7 @@ import {
   Min,
   ValidateIf,
   ValidateNested,
+  IsObject,
 } from 'class-validator';
 import { PaginationDto } from '../../../common/dto/pagination.dto';
 
@@ -24,7 +26,7 @@ const MONTO = /^\d{1,10}(\.\d{1,2})?$/;
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 
 export class LineaVentaDto {
-  @ApiProperty() @IsInt() libroId: number;
+  @ApiProperty() @EsId() libroId: number;
   @ApiProperty({ example: 1 }) @IsInt() @Min(1) @Max(99) cantidad: number;
 }
 
@@ -37,7 +39,7 @@ const mayus = ({ value }: { value: unknown }) =>
 export class AlumnoVentaDto {
   @ApiPropertyOptional({ description: 'Alumno ya registrado' })
   @IsOptional()
-  @IsInt()
+  @EsId()
   alumnoId?: number;
   @ApiPropertyOptional({ description: 'Alumno nuevo: se registra y se vincula al cliente' })
   @IsOptional()
@@ -51,10 +53,10 @@ export class AlumnoVentaDto {
   @IsString()
   @MaxLength(100)
   apellidos?: string;
-  @ApiPropertyOptional() @IsOptional() @IsInt() gradoId?: number;
+  @ApiPropertyOptional() @IsOptional() @EsId() gradoId?: number;
   @ApiPropertyOptional({ description: 'Combo del grado: aplica su descuento si va completo' })
   @IsOptional()
-  @IsInt()
+  @EsId()
   comboId?: number;
   @ApiPropertyOptional({ description: 'Número de licencia digital del sitio didáctico' })
   @IsOptional()
@@ -65,13 +67,14 @@ export class AlumnoVentaDto {
   @IsArray()
   @ArrayMinSize(1, { message: 'Agregue al menos un libro para cada alumno' })
   @ArrayMaxSize(40)
+  @IsObject({ each: true })
   @ValidateNested({ each: true })
   @Type(() => LineaVentaDto)
   lineas: LineaVentaDto[];
 }
 
 export class PagoDto {
-  @ApiProperty() @IsInt() metodoPagoId: number;
+  @ApiProperty() @EsId() metodoPagoId: number;
   @ApiProperty({ example: '750.00', description: 'Monto base (sin recargo)' })
   @Matches(MONTO, { message: 'Monto inválido (máximo 2 decimales)' })
   montoBase: string;
@@ -98,11 +101,11 @@ export class PagoDto {
 export class CotizarVentaDto {
   @ApiPropertyOptional({ description: 'Por defecto, el colegio de la caja (DP-10)' })
   @IsOptional()
-  @IsInt()
+  @EsId()
   colegioId?: number;
   @ApiPropertyOptional({ description: 'Combo de origen: aplica su descuento si va completo' })
   @IsOptional()
-  @IsInt()
+  @EsId()
   comboId?: number;
   @ApiPropertyOptional({
     type: [LineaVentaDto],
@@ -112,6 +115,7 @@ export class CotizarVentaDto {
   @IsArray()
   @ArrayMinSize(1, { message: 'Agregue al menos un libro' })
   @ArrayMaxSize(60)
+  @IsObject({ each: true })
   @ValidateNested({ each: true })
   @Type(() => LineaVentaDto)
   lineas?: LineaVentaDto[];
@@ -120,6 +124,7 @@ export class CotizarVentaDto {
   @IsArray()
   @ArrayMinSize(1, { message: 'Agregue al menos un alumno' })
   @ArrayMaxSize(10)
+  @IsObject({ each: true })
   @ValidateNested({ each: true })
   @Type(() => AlumnoVentaDto)
   alumnos?: AlumnoVentaDto[];
@@ -131,15 +136,16 @@ export class CotizarVentaDto {
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(10)
+  @IsObject({ each: true })
   @ValidateNested({ each: true })
   @Type(() => PagoDto)
   pagos?: PagoDto[];
 }
 
 export class CrearVentaDto extends OmitType(CotizarVentaDto, ['pagos'] as const) {
-  @ApiProperty() @IsInt() clienteId: number;
+  @ApiProperty() @EsId() clienteId: number;
   @ApiPropertyOptional() @IsOptional() @Transform(trim) @IsString() @MaxLength(150) alumno?: string;
-  @ApiPropertyOptional() @IsOptional() @IsInt() gradoId?: number;
+  @ApiPropertyOptional() @IsOptional() @EsId() gradoId?: number;
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(trim)
@@ -150,6 +156,7 @@ export class CrearVentaDto extends OmitType(CotizarVentaDto, ['pagos'] as const)
   @IsArray()
   @ArrayMinSize(1, { message: 'Registre al menos un pago' })
   @ArrayMaxSize(10)
+  @IsObject({ each: true })
   @ValidateNested({ each: true })
   @Type(() => PagoDto)
   pagos: PagoDto[];
@@ -177,7 +184,7 @@ export class EnviarComprobanteDto {
 }
 
 export class EntregaItemDto {
-  @ApiProperty() @IsInt() detalleId: number;
+  @ApiProperty() @EsId() detalleId: number;
   @ApiProperty() @IsInt() @Min(1) @Max(99) cantidad: number;
 }
 
@@ -186,6 +193,7 @@ export class EntregarDto {
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(60)
+  @IsObject({ each: true })
   @ValidateNested({ each: true })
   @Type(() => EntregaItemDto)
   lineas: EntregaItemDto[];
@@ -204,9 +212,9 @@ export class AnularVentaDto {
 }
 
 export class FiltroVentasDto extends PaginationDto {
-  @IsOptional() @Type(() => Number) @IsInt() colegioId?: number;
-  @IsOptional() @Type(() => Number) @IsInt() turnoId?: number;
-  @IsOptional() @Type(() => Number) @IsInt() clienteId?: number;
+  @IsOptional() @Type(() => Number) @EsId() colegioId?: number;
+  @IsOptional() @Type(() => Number) @EsId() turnoId?: number;
+  @IsOptional() @Type(() => Number) @EsId() clienteId?: number;
   @IsOptional() @IsIn(['PAGADA', 'ANULADA']) estadoPago?: string;
   @IsOptional() @IsIn(['PENDIENTE', 'PARCIAL', 'COMPLETA']) estadoEntrega?: string;
   /** Ventas pagadas con libros por entregar (CU-10). El cajero ve las de su colegio. */

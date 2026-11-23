@@ -1,14 +1,5 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseIntPipe,
-  Patch,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { ParamId } from '../../common/validation/entrada';
+import { Body, Controller, Delete, Get, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ClientIp, CurrentUser, Roles, UsuarioActual } from '../../common/decorators';
 import { Rol } from '../../common/roles';
@@ -26,7 +17,7 @@ export class ColegiosController {
     return this.service.listar(f);
   }
 
-  @Get(':id') obtener(@Param('id', ParseIntPipe) id: number) {
+  @Get(':id') obtener(@ParamId('id') id: number) {
     return this.service.obtener(id);
   }
 
@@ -39,7 +30,7 @@ export class ColegiosController {
   @Roles(Rol.ADMIN)
   @Patch(':id')
   editar(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @Body() dto: EditarColegioDto,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,
@@ -49,11 +40,7 @@ export class ColegiosController {
 
   @Roles(Rol.ADMIN)
   @Delete(':id')
-  eliminar(
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() u: UsuarioActual,
-    @ClientIp() ip: string,
-  ) {
+  eliminar(@ParamId('id') id: number, @CurrentUser() u: UsuarioActual, @ClientIp() ip: string) {
     return this.service.eliminar(id, u.id, ip);
   }
 }

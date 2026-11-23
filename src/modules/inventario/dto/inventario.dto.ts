@@ -1,3 +1,4 @@
+import { EsId } from '../../../common/validation/entrada';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -13,27 +14,28 @@ import {
   MaxLength,
   Min,
   ValidateNested,
+  IsObject,
 } from 'class-validator';
 import { PaginationDto } from '../../../common/dto/pagination.dto';
 
 export class FiltroInventarioDto {
-  @IsOptional() @Type(() => Number) @IsInt() colegioId?: number;
+  @IsOptional() @Type(() => Number) @EsId() colegioId?: number;
   @IsOptional() @IsString() @MaxLength(100) q?: string;
   @IsOptional() @IsIn(['true', 'false']) soloConExistencia?: 'true' | 'false';
 }
 
 export class FiltroMovimientosDto extends PaginationDto {
-  @IsOptional() @Type(() => Number) @IsInt() colegioId?: number;
-  @IsOptional() @Type(() => Number) @IsInt() libroId?: number;
+  @IsOptional() @Type(() => Number) @EsId() colegioId?: number;
+  @IsOptional() @Type(() => Number) @EsId() libroId?: number;
 }
 
 export class IngresoItemDto {
-  @ApiProperty() @IsInt() libroId: number;
+  @ApiProperty() @EsId() libroId: number;
   @ApiProperty({ example: 25 }) @IsInt() @Min(1) @Max(100000) cantidad: number;
 }
 
 export class IngresoDto {
-  @ApiProperty() @IsInt() colegioId: number;
+  @ApiProperty() @EsId() colegioId: number;
   @ApiPropertyOptional({ example: 'Factura 4521 Editorial X' })
   @IsOptional()
   @IsString()
@@ -44,14 +46,15 @@ export class IngresoDto {
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(500)
+  @IsObject({ each: true })
   @ValidateNested({ each: true })
   @Type(() => IngresoItemDto)
   items: IngresoItemDto[];
 }
 
 export class AjusteDto {
-  @ApiProperty() @IsInt() colegioId: number;
-  @ApiProperty() @IsInt() libroId: number;
+  @ApiProperty() @EsId() colegioId: number;
+  @ApiProperty() @EsId() libroId: number;
   @ApiProperty({ description: 'Existencia física contada (valor final)' })
   @IsInt()
   @Min(0)

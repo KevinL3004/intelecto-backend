@@ -1,11 +1,10 @@
+import { ParamId } from '../../common/validation/entrada';
 import {
   Body,
   Controller,
   Delete,
   ForbiddenException,
   Get,
-  Param,
-  ParseIntPipe,
   Patch,
   Post,
   Query,
@@ -30,7 +29,7 @@ export class CombosController {
   }
 
   @Get(':id')
-  async obtener(@Param('id', ParseIntPipe) id: number, @CurrentUser() u: UsuarioActual) {
+  async obtener(@ParamId('id') id: number, @CurrentUser() u: UsuarioActual) {
     const c = await this.service.obtener(id);
     if (u.rol === Rol.CAJERO && u.colegioId && c.colegioId !== u.colegioId)
       throw new ForbiddenException('Solo puede consultar su propio colegio');
@@ -46,7 +45,7 @@ export class CombosController {
   @Roles(Rol.ADMIN)
   @Patch(':id')
   editar(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @Body() dto: EditarComboDto,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,
@@ -56,11 +55,7 @@ export class CombosController {
 
   @Roles(Rol.ADMIN)
   @Delete(':id')
-  eliminar(
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() u: UsuarioActual,
-    @ClientIp() ip: string,
-  ) {
+  eliminar(@ParamId('id') id: number, @CurrentUser() u: UsuarioActual, @ClientIp() ip: string) {
     return this.service.eliminar(id, u.id, ip);
   }
 }

@@ -1,11 +1,12 @@
+import { Opcional } from '../validation/entrada';
 import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class PaginationDto {
-  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100000) page = 1;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(200) limit = 20;
   @IsOptional() @IsString() @MaxLength(100) q?: string;
-  @IsOptional() @IsIn(['true', 'false']) activo?: 'true' | 'false';
+  @Opcional() @IsIn(['true', 'false']) activo?: 'true' | 'false';
 }
 
 export interface Paginated<T> {

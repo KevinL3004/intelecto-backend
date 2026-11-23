@@ -1,22 +1,23 @@
+import { EsId, Opcional } from '../../../common/validation/entrada';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsBoolean, IsInt, IsNumberString, IsOptional, Max, Min } from 'class-validator';
 
 export class CrearCajaDto {
-  @ApiProperty() @IsInt() colegioId: number;
+  @ApiProperty() @EsId() colegioId: number;
   @ApiProperty({ example: 1 }) @IsInt() @Min(1) @Max(99) numero: number;
   @ApiPropertyOptional({ example: '500.00', description: 'Fondo (sencillo) asignado' })
-  @IsOptional()
+  @Opcional()
   @IsNumberString({}, { message: 'Fondo inválido' })
   fondoAsignado?: string;
 }
 
 export class EditarCajaDto {
-  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Max(99) numero?: number;
-  @ApiPropertyOptional() @IsOptional() @IsNumberString() fondoAsignado?: string;
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() activa?: boolean;
+  @ApiPropertyOptional() @Opcional() @IsInt() @Min(1) @Max(99) numero?: number;
+  @ApiPropertyOptional() @Opcional() @IsNumberString() fondoAsignado?: string;
+  @ApiPropertyOptional() @Opcional() @IsBoolean() activa?: boolean;
 }
 
 export class FiltroCajasDto {
-  @IsOptional() @Type(() => Number) @IsInt() colegioId?: number;
+  @IsOptional() @Type(() => Number) @EsId() colegioId?: number;
 }

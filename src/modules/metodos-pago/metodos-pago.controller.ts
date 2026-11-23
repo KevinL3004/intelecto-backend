@@ -1,12 +1,5 @@
-import {
-  Body,
-  Controller,
-  Get,
-  NotFoundException,
-  Param,
-  ParseIntPipe,
-  Patch,
-} from '@nestjs/common';
+import { ParamId } from '../../common/validation/entrada';
+import { Body, Controller, Get, NotFoundException, Patch } from '@nestjs/common';
 import { ApiBearerAuth, ApiProperty, ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Transform } from 'class-transformer';
@@ -45,7 +38,7 @@ export class MetodosPagoController {
   @Roles(Rol.ADMIN)
   @Patch(':id/recargo')
   async recargo(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @Body() dto: RecargoDto,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,

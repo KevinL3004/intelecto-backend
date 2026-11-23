@@ -1,15 +1,16 @@
+import { EsId, Opcional } from '../../../common/validation/entrada';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEnum,
-  IsInt,
   IsOptional,
   IsString,
   Matches,
   MaxLength,
   MinLength,
   ValidateNested,
+  IsObject,
 } from 'class-validator';
 import { Rol } from '../../../common/roles';
 import { CrearPersonaDto } from '../../personas/dto/persona.dto';
@@ -18,10 +19,11 @@ import { PasswordSegura } from '../../../common/utils/password';
 export class CrearUsuarioDto {
   @ApiPropertyOptional({ description: 'Persona existente' })
   @IsOptional()
-  @IsInt()
+  @EsId()
   personaId?: number;
   @ApiPropertyOptional({ type: CrearPersonaDto, description: 'O datos para crear la persona' })
   @IsOptional()
+  @IsObject()
   @ValidateNested()
   @Type(() => CrearPersonaDto)
   persona?: CrearPersonaDto;
@@ -35,13 +37,13 @@ export class CrearUsuarioDto {
   @PasswordSegura()
   password: string;
   @ApiProperty({ enum: Rol }) @IsEnum(Rol) rol: Rol;
-  @ApiPropertyOptional() @IsOptional() @IsInt() colegioId?: number | null;
+  @ApiPropertyOptional() @IsOptional() @EsId() colegioId?: number | null;
 }
 
 export class EditarUsuarioDto {
-  @ApiPropertyOptional({ enum: Rol }) @IsOptional() @IsEnum(Rol) rol?: Rol;
-  @ApiPropertyOptional() @IsOptional() @IsInt() colegioId?: number | null;
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() activo?: boolean;
+  @ApiPropertyOptional({ enum: Rol }) @Opcional() @IsEnum(Rol) rol?: Rol;
+  @ApiPropertyOptional() @IsOptional() @EsId() colegioId?: number | null;
+  @ApiPropertyOptional() @Opcional() @IsBoolean() activo?: boolean;
 }
 
 export class ResetPasswordDto {

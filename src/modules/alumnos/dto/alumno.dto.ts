@@ -1,14 +1,7 @@
+import { EsId, Opcional } from '../../../common/validation/entrada';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import {
-  IsBoolean,
-  IsIn,
-  IsInt,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 import { PaginationDto } from '../../../common/dto/pagination.dto';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
@@ -23,11 +16,11 @@ export class CrearAlumnoDto {
   @IsString()
   @MaxLength(100)
   apellidos?: string;
-  @ApiPropertyOptional() @IsOptional() @IsInt() colegioId?: number;
-  @ApiPropertyOptional() @IsOptional() @IsInt() gradoId?: number;
+  @ApiPropertyOptional() @IsOptional() @EsId() colegioId?: number;
+  @ApiPropertyOptional() @IsOptional() @EsId() gradoId?: number;
   @ApiPropertyOptional({ description: 'Encargado al que se vincula' })
   @IsOptional()
-  @IsInt()
+  @EsId()
   personaId?: number;
   @ApiPropertyOptional({ enum: PARENTESCOS })
   @IsOptional()
@@ -35,12 +28,12 @@ export class CrearAlumnoDto {
   parentesco?: Parentesco;
 }
 
-export class EditarAlumnoDto extends PartialType(CrearAlumnoDto) {
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() activo?: boolean;
+export class EditarAlumnoDto extends PartialType(CrearAlumnoDto, { skipNullProperties: false }) {
+  @ApiPropertyOptional() @Opcional() @IsBoolean() activo?: boolean;
 }
 
 export class VincularDto {
-  @ApiProperty() @IsInt() personaId: number;
+  @ApiProperty() @EsId() personaId: number;
   @ApiPropertyOptional({ enum: PARENTESCOS })
   @IsOptional()
   @IsIn(PARENTESCOS)
@@ -48,6 +41,6 @@ export class VincularDto {
 }
 
 export class FiltroAlumnosDto extends PaginationDto {
-  @IsOptional() @Type(() => Number) @IsInt() colegioId?: number;
-  @IsOptional() @Type(() => Number) @IsInt() gradoId?: number;
+  @IsOptional() @Type(() => Number) @EsId() colegioId?: number;
+  @IsOptional() @Type(() => Number) @EsId() gradoId?: number;
 }

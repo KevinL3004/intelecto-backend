@@ -1,14 +1,5 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseIntPipe,
-  Patch,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { ParamId } from '../../common/validation/entrada';
+import { Body, Controller, Delete, Get, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsEnum, IsOptional } from 'class-validator';
 import { ClientIp, CurrentUser, Roles, UsuarioActual } from '../../common/decorators';
@@ -35,7 +26,7 @@ export class UsuariosController {
 
   @Roles(Rol.ADMIN, Rol.CONTADOR)
   @Get(':id')
-  obtener(@Param('id', ParseIntPipe) id: number) {
+  obtener(@ParamId('id') id: number) {
     return this.service.obtener(id);
   }
 
@@ -48,7 +39,7 @@ export class UsuariosController {
   @Roles(Rol.ADMIN)
   @Patch(':id')
   editar(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @Body() dto: EditarUsuarioDto,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,
@@ -59,7 +50,7 @@ export class UsuariosController {
   @Roles(Rol.ADMIN)
   @Patch(':id/password')
   reset(
-    @Param('id', ParseIntPipe) id: number,
+    @ParamId('id') id: number,
     @Body() dto: ResetPasswordDto,
     @CurrentUser() u: UsuarioActual,
     @ClientIp() ip: string,
@@ -69,11 +60,7 @@ export class UsuariosController {
 
   @Roles(Rol.ADMIN)
   @Delete(':id')
-  desactivar(
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser() u: UsuarioActual,
-    @ClientIp() ip: string,
-  ) {
+  desactivar(@ParamId('id') id: number, @CurrentUser() u: UsuarioActual, @ClientIp() ip: string) {
     return this.service.desactivar(id, u.id, ip);
   }
 }
